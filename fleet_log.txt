@@ -1,3 +1,3 @@
-ID:100 | [WARNING]Speed:100.0, Temp:101.0
-ID:101 | [WARNING]Speed:101.0, Temp:99.0
-ID:102 | [NOMAL]Speed:99.0, Temp:99.0
+ID:100 | [WARNING]Speed:101.0, Temp:100.0
+ID:101 | [WARNING]Speed:100.0, Temp:101.0
+ID:102 | [NOMAL]Speed:100.0, Temp:100.0
