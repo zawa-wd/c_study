@@ -9,16 +9,19 @@ struct Vehicle{
 };
 
 /*判定関数*/
-const char* check_safety(double s,double t){
-    if(s > 100.0 || t > 100.0){
+//const char* check_safety(double s,double t){
+int check_safety(double s, double t){
+if(s > 100.0 || t > 100.0){
 
-        return "WARNING";
+//        return "WARNING";
+        return 1;\
     }
-    return "NORMAL";
+//    return "NORMAL"a;
+    return 0;
 };
 
 /*ファイル保存関数*/
-void save_file(struct Vehicle v){
+int save_file(struct Vehicle v){
 
     FILE *file = fopen("fleet_log.txt", "a");
 
@@ -28,7 +31,9 @@ void save_file(struct Vehicle v){
         fprintf(file, "Speed:%.1f, Temp:%.1f\n",v.speed ,v.temp);
         fclose(file);
         printf("-> 記録しました。");
+        return 1;
     }
+    return 0;
 };
 
 int main(){
@@ -51,8 +56,22 @@ int main(){
     printf("温度(度):");
     scanf("%lf", &v.temp);
 
-    v.status = check_safety(v.speed, v.temp);
-    save_file(v);
+//    v.status = check_safety(v.speed, v.temp);
+    int result = check_safety(v.speed, v.temp);
+    if(1 == result){
+        v.status = "WARNING";
+    }
+    else{
+        v.status = "NOEMAL";
+    }
+
+   result =  save_file(v);
+    if(1 == result){
+        printf("ファイル書き込み成功");
+    }
+    else{
+        printf("ファイル書き込み失敗");
+    }
 
     }
     return 0;
