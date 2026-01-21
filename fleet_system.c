@@ -1,29 +1,30 @@
 #include <stdio.h>
+
 /*--- 設定 ---*/
-#define LOG_FILE "fleet_log.txt"
-#define REPORT_FILE "analysis_report.txt"
-#define SPEED_LIMIT 100.0
-#define TEMP_LIMIT 80.0
+#define LOG_FILE     "fleet_log.txt"
+#define REPORT_FILE  "analysis_report.txt"
+#define SPEED_LIMIT  100.0
+#define TEMP_LIMIT   80.0
 
 /*--- データ構造の定義 ---*/
 struct Vehicle{
-    int id;
+    int    id;
     double speed;
     double temp;
 };
 
 /* --- プロトタイプ宣言 ---*/
-int is_driving(double speed);       //走行中であるか判定
-int is_speeding(double speed);      //スピードオーバーであるか判定
-int is_overheating(double temp);    //温度の判定
-int save_to_file(struct Vehicle v); //保存用関数
-int report_save_to_file(int count, int warning_count, double total_speed);         //レポート作成用関数
-void run_input_mode();              //入力用関数
-void run_analysis_mode();           //出力用関数
+int  is_driving          (double speed);     //走行中であるか判定
+int  is_speeding         (double speed);     //スピードオーバーであるか判定
+int  is_overheating      (double temp);      //温度の判定
+int  save_to_file        (struct Vehicle v); //保存用関数
+int  report_save_to_file (int count, int warning_count, double total_speed); //レポート作成用関数
+void run_input_mode();      //入力用関数
+void run_analysis_mode();   //出力用関数
 
-/*=====================
- *メインルーチン
- *=====================*/
+/*==========================
+ ****** メインルーチン *****
+ *==========================*/
 int main(){
     int choice;
 
@@ -35,7 +36,7 @@ int main(){
         printf("   選択してください(1-3):");
 
         if(scanf("%d", &choice) != 1){
-            while(getchar() != '\n');//数字以外の対策
+            while(getchar() != '\n'); //数字以外の入力対策
             continue;
         }
 
@@ -49,13 +50,18 @@ int main(){
     }
 }
 
-/*========================
- *各機能
- *========================*/
+/*=====================
+ ***** 各機能関数 *****
+ *=====================*/
 
 /****************************
- * 走行中であるか判定
- * 0より大きい場合1、0以下の場合0を返す
+ * 走行判定関数
+ **[概要]
+ *走行しているか(0km/hより速度が出ているか)を判定
+ **[引数]
+ * double speed :車速(km/h)
+ **[戻り値]
+ * int : 車速が0km/hより大きい場合1、0km/hの場合0を返す
  ****************************/
 int is_driving(double speed){
 
@@ -63,8 +69,13 @@ int is_driving(double speed){
 }
 
 /*****************************
- * スピードオーバーの判定
- * SPEED_LIMITより大きい場合1、小さい場合0を返す
+ * スピードオーバー判定関数
+ **[概要]
+ *SPEED_LIMIT以上である場合速度オーバーを判定する
+ **[引数]
+ * double speed :車速(km/h)
+ **[戻り値]
+ * int : 車速がSPEED_LIMITより大きい場合1、小さい場合0を返す
  ****************************/
 int is_speeding(double speed){
 
@@ -73,7 +84,12 @@ int is_speeding(double speed){
 
 /*****************************
  * 温度判定
- * TEMP_LIMITより大きい場合1、小さい場合0を返す
+ **[概要]
+ *TEMP_LIMITより大きい場判定判定
+ **[引数]
+ * double temp :温度(度)
+ **[戻り値]
+ * int : 温度がTEMP_LIMITより大きい場合1、小さい場合0を返す
 ******************************/
 int is_overheating(double temp){
 
@@ -81,8 +97,13 @@ int is_overheating(double temp){
 }
 
 /*******************************
- *保存関数
- *LOGFILE名のファイルに入力した内容を保存をする
+ *ログファイル保存関数
+ **[概要]
+ * LOGFILE名のファイルに入力した内容を保存をする
+ **[引数]
+ * struct Vehicle v :保存対象の車両データ構造体(ID、車速、温度を含む)
+ **[戻り値]
+ * int : 保存成功時、1を返す
  *******************************/
 int save_to_file(struct Vehicle v){
     FILE *file = fopen(LOG_FILE, "a");
@@ -94,7 +115,15 @@ int save_to_file(struct Vehicle v){
 }
 
 /********************************
- *reportさくせいよう
+ *レポートファイル作成/保存 関数
+ **[概要]
+ * 分析された統計データを受け取り、REPORT_FILEにフォーマットして書き出す
+ **[引数]
+ * int  count         :集計対象となった車両の総数 
+ * int  warning_count :速度制限を超過した警告の発生回数
+ * double total_speed :集計対象車両の速度の合計(km/h)
+ **[戻り値]
+ * int : 保存成功時は1、ファイルオープン失敗時は0を返す
  ********************************/
 int report_save_to_file(int count,int warning_count, double total_speed){
     FILE *report = fopen(REPORT_FILE, "w");
@@ -119,7 +148,12 @@ int report_save_to_file(int count,int warning_count, double total_speed){
 
 /*****************************
  * 入力関数
- * 車両ID、速度、温度を入力
+ **[概要]
+ * 車両ID、速度(km/h)、温度(度)の入力 
+ **[引数]
+ * void
+ **[戻り値]
+ * void
  ****************************/
 void run_input_mode(){
     struct Vehicle v;
@@ -128,8 +162,8 @@ void run_input_mode(){
         scanf("%d", &v.id);
         if(v.id == -1) break;
 
-        printf("速度:"); scanf("%lf", &v.speed);
-        printf("温度:"); scanf("%lf", &v.temp);
+        printf("速度(km/h):"); scanf("%lf", &v.speed);
+        printf("温度(度)  :"); scanf("%lf", &v.temp);
         
         //入力内容を保存
         if(save_to_file(v)){
@@ -143,6 +177,13 @@ void run_input_mode(){
 
 /*****************************
  * 読み込み/分析 関数 
+ **[概要]
+ * LOG_FILEを読み込みし、表示
+ * それぞれ分析している関数に渡す
+ **[引数]
+ * void
+ **[戻り値]
+ * void
  *****************************/
 void run_analysis_mode(){
     FILE *file = fopen(LOG_FILE, "r");
