@@ -1,7 +1,7 @@
 #include <stdio.h>
-
 /*--- 設定 ---*/
 #define LOG_FILE "fleet_log.txt"
+#define REPORT_FILE "analysis_report.txt"
 #define SPEED_LIMIT 100.0
 #define TEMP_LIMIT 80.0
 
@@ -17,6 +17,7 @@ int is_driving(double speed);       //走行中であるか判定
 int is_speeding(double speed);      //スピードオーバーであるか判定
 int is_overheating(double temp);    //温度の判定
 int save_to_file(struct Vehicle v); //保存用関数
+int report_save_to_file(int count, int warning_count, double total_speed);         //レポート作成用関数
 void run_input_mode();              //入力用関数
 void run_analysis_mode();           //出力用関数
 
@@ -92,6 +93,30 @@ int save_to_file(struct Vehicle v){
     return 1;
 }
 
+/********************************
+ *reportさくせいよう
+ ********************************/
+int report_save_to_file(int count,int warning_count, double total_speed){
+    FILE *report = fopen(REPORT_FILE, "w");
+    if (report == NULL) return 0;
+
+    fprintf(report, "=== 車両分析レポート ===\n");
+    fprintf(report, "集計対象件数: %d 件\n", count);
+
+    if(count > 0){
+        fprintf(report, "全体の平均速度: %.1f km/h\n", total_speed / count);
+    }
+    else{
+        fprintf(report, "走行データなし\n");
+    }
+
+    fprintf(report, "速度超過警告数: %d 件\n", warning_count);
+    fprintf(report, "===================\n");
+
+    fclose(report);
+    return 1;
+}
+
 /*****************************
  * 入力関数
  * 車両ID、速度、温度を入力
@@ -161,4 +186,12 @@ void run_analysis_mode(){
     printf("--- 分析結果 ---");
     if(count > 0) printf("平均速度: %.1f km/h\n", total_speed / count);//is_driving
     printf("警告件数: %d件\n", warning_count);//is_speeding
+
+    if(report_save_to_file(count, warning_count, total_speed)){
+        printf("レポートを作成しました\n");
+    }
+    else{
+        printf("レポート作成失敗\n");
+    }
+        
 }
