@@ -3,6 +3,7 @@
 /*--- 設定 ---*/
 #define LOG_FILE "fleet_log.txt"
 #define SPEED_LIMIT 100.0
+#define TEMP_LIMIT 80.0
 
 /*--- データ構造の定義 ---*/
 struct Vehicle{
@@ -14,6 +15,7 @@ struct Vehicle{
 /* --- プロトタイプ宣言 ---*/
 int is_driving(double speed);       //走行中であるか判定
 int is_speeding(double speed);      //スピードオーバーであるか判定
+int is_overheating(double temp);    //温度の判定
 int save_to_file(struct Vehicle v); //保存用関数
 void run_input_mode();              //入力用関数
 void run_analysis_mode();           //出力用関数
@@ -66,6 +68,15 @@ int is_driving(double speed){
 int is_speeding(double speed){
 
     return speed >= SPEED_LIMIT;
+}
+
+/*****************************
+ * 温度判定
+ * TEMP_LIMITより大きい場合1、小さい場合0を返す
+******************************/
+int is_overheating(double temp){
+
+    return temp >= TEMP_LIMIT;
 }
 
 /*******************************
@@ -125,7 +136,7 @@ void run_analysis_mode(){
 
     printf("\n--- 走行ログ一覧 ---\n");
     while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &id, &s, &t) !=EOF){
-        printf("ID:%03d | 速度:%5.1f | 温度:%5.1f\n", id, s, t);
+        printf("ID:%03d | 速度:%5.1f | 温度:%5.1f  ", id, s, t);
 
         //走行中か判定
         if(is_driving(s)){
@@ -134,9 +145,14 @@ void run_analysis_mode(){
         }
         //スピードオーバーか判定
         if(is_speeding(s)){
-            printf("[WARNING]");
+            printf("[SPEED_OVER]");
             warning_count++;
         }
+        //温度判定
+        if(is_overheating(t)){
+            printf("[HOT]");
+        }
+
         printf("\n");
 
     }
