@@ -12,11 +12,11 @@ struct Vehicle{
 };
 
 /* --- プロトタイプ宣言 ---*/
-int save_to_file(struct Vehicle v);
-void run_input_mode();
-int is_driving(double speed);    //走行中であるか判定
-int is_speeding(double speed);   //スピードオーバーであるか判定
-void run_analysis_mode();
+int is_driving(double speed);       //走行中であるか判定
+int is_speeding(double speed);      //スピードオーバーであるか判定
+int save_to_file(struct Vehicle v); //保存用関数
+void run_input_mode();              //入力用関数
+void run_analysis_mode();           //出力用関数
 
 /*=====================
  *メインルーチン
@@ -48,9 +48,30 @@ int main(){
 
 /*========================
  *各機能
- * =======================*/
+ *========================*/
 
-/*保存関数*/
+/****************************
+ * 走行中であるか判定
+ * 0より大きい場合1、0以下の場合0を返す
+ ****************************/
+int is_driving(double speed){
+
+    return speed > 0;
+}
+
+/*****************************
+ * スピードオーバーの判定
+ * SPEED_LIMITより大きい場合1、小さい場合0を返す
+ ****************************/
+int is_speeding(double speed){
+
+    return speed >= SPEED_LIMIT;
+}
+
+/*******************************
+ *保存関数
+ *LOGFILE名のファイルに入力した内容を保存をする
+ *******************************/
 int save_to_file(struct Vehicle v){
     FILE *file = fopen(LOG_FILE, "a");
     if (file == NULL) return 0;
@@ -60,7 +81,10 @@ int save_to_file(struct Vehicle v){
     return 1;
 }
 
-/*入力関数*/
+/*****************************
+ * 入力関数
+ * 車両ID、速度、温度を入力
+ ****************************/
 void run_input_mode(){
     struct Vehicle v;
     while(1){
@@ -70,7 +94,8 @@ void run_input_mode(){
 
         printf("速度:"); scanf("%lf", &v.speed);
         printf("温度:"); scanf("%lf", &v.temp);
-
+        
+        //入力内容を保存
         if(save_to_file(v)){
             printf("->[SUCCESS]データを保存しました\n");
         }
@@ -79,20 +104,10 @@ void run_input_mode(){
         }
     }
 }
-/* 走行中であるか判定*/
-int is_driving(double speed){
 
-    return speed > 0;
-}
-
-/*スピードオーバーの判定*/
-int is_speeding(double speed){
-
-    return speed >= 100.0;
-}
-
-
-/* 読み込み/分析 関数 */
+/*****************************
+ * 読み込み/分析 関数 
+ *****************************/
 void run_analysis_mode(){
     FILE *file = fopen(LOG_FILE, "r");
     int id;
@@ -111,13 +126,16 @@ void run_analysis_mode(){
     printf("\n--- 走行ログ一覧 ---\n");
     while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &id, &s, &t) !=EOF){
         printf("ID:%03d | 速度:%5.1f | 温度:%5.1f\n", id, s, t);
-        if(is_speeding(s)){
-            printf("[WARNING]");
-            warning_count++;
-        }
+
+        //走行中か判定
         if(is_driving(s)){
             total_speed += s;
             count++;
+        }
+        //スピードオーバーか判定
+        if(is_speeding(s)){
+            printf("[WARNING]");
+            warning_count++;
         }
         printf("\n");
 
@@ -125,6 +143,6 @@ void run_analysis_mode(){
     fclose(file);
 
     printf("--- 分析結果 ---");
-    if(count > 0) printf("平均速度: %.1f km/h\n", total_speed / count);
-    printf("警告件数: %d件\n", warning_count);
+    if(count > 0) printf("平均速度: %.1f km/h\n", total_speed / count);//is_driving
+    printf("警告件数: %d件\n", warning_count);//is_speeding
 }
