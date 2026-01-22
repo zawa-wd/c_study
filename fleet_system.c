@@ -430,7 +430,7 @@ void save_as_csv(){
 
     int count = load_all_logs(logs);//全データ読み出しのカウント
 
-    FILE *csv_file = fopen(CSV_FILE, "w");
+    FILE *csv_file = fopen(CSV_FILE, "w");//ポインタを利用してファイルの住所を教えているイメージ
     if (csv_file == NULL) return;
 
     fprintf(csv_file, "ID,SPEED,TEMP\n");
@@ -453,6 +453,7 @@ void save_as_csv(){
  **[戻り値]
  * void
  *******************************/
+//2重ループをよく理解する。イメージは植木算しながら右端をどんどん決定しているいめーじ
 void run_speed_ranking(){
     struct Vehicle logs[MAX_LOGS];
 
@@ -462,7 +463,7 @@ void run_speed_ranking(){
     for(int i = 0; i < count -1; i++){
         for (int j = 0; j < count -1 -i; j++){
             if(logs[j].speed < logs[j + 1].speed){
-                struct Vehicle temp = logs[j];
+                struct Vehicle temp = logs[j];//構造体まるごとコピー(ID,速度、温度)
                 logs[j] = logs[j + 1];
                 logs[j + 1] = temp;
             }
