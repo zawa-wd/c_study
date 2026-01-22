@@ -7,9 +7,11 @@
 
 /*--- 設定 ---*/
 #define LOG_FILE     "fleet_log.txt"
+#define CSV_FILE     "fleet_log.csv"
 #define REPORT_FILE  "analysis_report.txt"
 #define SPEED_LIMIT  100.0
 #define TEMP_LIMIT   80.0
+#define MAX_LOGS     1000 //1000件までメモリに載せる
 
 /*--- データ構造の定義 ---*/
 struct Vehicle{
@@ -28,6 +30,8 @@ void run_input_mode();      //入力用関数
 void run_analysis_mode();   //出力用関数
 void run_search_mode();     //検索用関数20260122
 void run_reset_mode();      //初期化関数20260122
+void analyze_top_speed();   //最高速度を検出20260122
+void save_as_csv(); //CSVファイル出力20260122
 
 /*==========================
  ****** メインルーチン *****
@@ -41,7 +45,9 @@ int main(){
         printf("2. ログの表示/分析\n");
         printf("3. 車両ID検索\n");
         printf("4. LOG初期化\n");
-        printf("5. 終了\n");
+        printf("5. 最高速度検出\n");
+        printf("6. CSVファイル出力\n");
+        printf("0. 終了\n");
         printf("   選択してください:");
 
         if(scanf("%d", &choice) != 1){
@@ -54,7 +60,9 @@ int main(){
             case 2: run_analysis_mode(); break;
             case 3: run_search_mode(); break;
             case 4: run_reset_mode(); break;
-            case 5: printf("終了します\n"); return 0;
+            case 5: analyze_top_speed(); break;
+            case 6: save_as_csv(); break;
+            case 0: printf("終了します\n"); return 0;
             default: printf("無効な選択です\n");
 
         }
@@ -324,4 +332,76 @@ void run_reset_mode(){
     else{
         printf("->キャンセルしました\n");
     }
+}
+
+/*****************************
+ * 全データ読み込み関数
+ **[概要]
+ *全データを読み込みし、最高速度の車両IDをみつける機能
+ **[引数]
+ * void
+ **[戻り値]
+ * void
+ *****************************/
+void analyze_top_speed(){
+    struct Vehicle logs[MAX_LOGS]; //構造体の配列
+    int count = 0;
+    FILE *file = fopen(LOG_FILE, "r");
+
+    if(file == NULL) return;
+
+    //全データを配列に読み込み
+    while(count < MAX_LOGS && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
+        count++;
+    }
+    fclose(file);
+
+    //配列の中から最高速度を捜す
+    if(count > 0){
+        int top_index = 0;
+        for (int i = 1; i < count; i++){
+            if(logs[i].speed > logs[top_index].speed){
+                top_index = i;
+            }
+        }
+        printf("\n[最高速度記録]\n");
+        printf("車両ID:%03d | 速度:%.1f km/h\n",logs[top_index].id, logs[top_index].speed);
+    }
+}
+
+/*******************************
+ *CSVログファイル保存関数
+ **[概要]
+ * CSVFILE名のファイルに入力した内容を保存をする
+ **[引数]
+ * void
+ **[戻り値]
+ * void
+ *******************************/
+void save_as_csv(){
+    struct Vehicle logs[MAX_LOGS];//
+    int count = 0;
+    FILE *file = fopen(LOG_FILE, "r");
+
+    if (file == NULL) return;
+
+    //全データを配列に読み込み
+    while(count < MAX_LOGS && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
+        count++;
+    }
+    fclose(file);
+
+    FILE *csv_file = fopen(CSV_FILE, "w");
+    if (file == NULL) return;
+
+    fprintf(csv_file, "ID,SPEED,TEMP\n");
+
+    //配列をCSVファイルに保存する
+    for (int i = 0; i < count; i++){
+        fprintf(csv_file, "%d,%lf,%lf\n", logs[i].id, logs[i].speed, logs[i].temp);
+    }
+    fclose(csv_file);
+
+    printf("\n[SUCCESS]CSVファイルへの保存が成功しました\n");
+
 }
