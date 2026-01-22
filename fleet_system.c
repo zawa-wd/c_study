@@ -6,12 +6,13 @@
 #include <stdio.h>
 
 /*--- 設定 ---*/
-#define LOG_FILE     "fleet_log.txt"
-#define CSV_FILE     "fleet_log.csv"
-#define REPORT_FILE  "analysis_report.txt"
-#define SPEED_LIMIT  100.0
-#define TEMP_LIMIT   80.0
-#define MAX_LOGS     1000 //1000件までメモリに載せる
+#define LOG_FILE          "fleet_log.txt"
+#define CSV_FILE          "fleet_log.csv"
+#define SPEEDING_CSV_FILE "fleet_speeding_log.csv"
+#define REPORT_FILE       "analysis_report.txt"
+#define SPEED_LIMIT  100.0  //最高速度
+#define TEMP_LIMIT   80.0   //温度チェック
+#define MAX_LOGS     999    //999件までメモリに載せる
 
 /*--- データ構造の定義 ---*/
 struct Vehicle{
@@ -26,14 +27,15 @@ int  is_speeding         (double speed);     //スピードオーバーである
 int  is_overheating      (double temp);      //温度の判定
 int  save_to_file        (struct Vehicle v); //保存用関数
 int  report_save_to_file (int count, int warning_count, double total_speed); //レポート作成用関数
-int  load_all_logs       (struct Vehicle logs[]); //20260122
+int  load_all_logs       (struct Vehicle logs[]); //全ログ数カウント20260122
 void run_input_mode();      //入力用関数
 void run_analysis_mode();   //出力用関数
 void run_search_mode();     //検索用関数20260122
 void run_reset_mode();      //初期化関数20260122
 void analyze_top_speed();   //最高速度を検出20260122
 void save_as_csv();         //CSVファイル出力20260122
-void run_speed_ranking();   //20260122
+void run_speed_ranking();   //最高速度ランキング20260122
+void save_as_speeding_csv();//速度違反車リスト出力(CSV)20260122
 
 /*==========================
  ****** メインルーチン *****
@@ -43,15 +45,16 @@ int main(){
 
     while(1){
         printf("\n=== 車両管理システムメニュー ===\n");
-        printf("1. 車両データの入力/保存\n");
-        printf("2. ログの表示/分析\n");
-        printf("3. 車両ID検索\n");
-        printf("4. LOG初期化\n");
-        printf("5. 最高速度検出\n");
-        printf("6. CSVファイル出力\n");
-        printf("7. ランキング出力\n");
-        printf("0. 終了\n");
-        printf("   選択してください:");
+        printf(" 1. 車両データの入力/保存\n");
+        printf(" 2. ログの表示/分析\n");
+        printf(" 3. 車両ID検索\n");
+        printf(" 4. LOG初期化\n");
+        printf(" 5. 最高速度検出\n");
+        printf(" 6. CSVファイル出力\n");
+        printf(" 7. ランキング出力\n");
+        printf(" 8. 速度違反車の出力\n");
+        printf(" 0. 終了\n");
+        printf("    -> [INFO] 選択してください:");
 
         if(scanf("%d", &choice) != 1){
             while(getchar() != '\n'); //数字以外の入力対策
@@ -66,8 +69,9 @@ int main(){
             case 5: analyze_top_speed(); break;
             case 6: save_as_csv(); break;
             case 7: run_speed_ranking(); break;
-            case 0: printf("終了します\n"); return 0;
-            default: printf("無効な選択です\n");
+            case 8: save_as_speeding_csv(); break;
+            case 0: printf("    -> [INFO] 終了します\n"); return 0;
+            default: printf("    -> [WARNING] 無効な選択です\n");
 
         }
     }
@@ -130,9 +134,11 @@ int is_overheating(double temp){
  *******************************/
 int save_to_file(struct Vehicle v){
     FILE *file = fopen(LOG_FILE, "a");
+
     if (file == NULL) return 0;
 
     fprintf(file, "ID:%d | SPEED:%.1f | TEMP:%.1f |\n", v.id, v.speed, v.temp);
+
     fclose(file);
     return 1;
 }
@@ -150,6 +156,7 @@ int save_to_file(struct Vehicle v){
  ********************************/
 int report_save_to_file(int count,int warning_count, double total_speed){
     FILE *report = fopen(REPORT_FILE, "w");
+
     if (report == NULL) return 0;
 
     fprintf(report, "=== 車両分析レポート ===\n");
@@ -163,7 +170,7 @@ int report_save_to_file(int count,int warning_count, double total_speed){
     }
 
     fprintf(report, "速度超過警告数: %d 件\n", warning_count);
-    fprintf(report, "===================\n");
+    fprintf(report, "========================\n");
 
     fclose(report);
     return 1;
@@ -179,13 +186,15 @@ int report_save_to_file(int count,int warning_count, double total_speed){
  * int : count(読み込んだ件数を返す)
  *******************************/
 int load_all_logs(struct Vehicle logs[]){
-    int count = 0;
     FILE *file = fopen(LOG_FILE,"r");
+    int count = 0;
+    
     if(file == NULL) return 0;
     
     while(count < MAX_LOGS && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
         count++;
     }
+
     fclose(file);
     return count;
 }
@@ -201,9 +210,11 @@ int load_all_logs(struct Vehicle logs[]){
  ****************************/
 void run_input_mode(){
     struct Vehicle v;
+
     while(1){
         printf("\n車両ID(-1で終了):");
         scanf("%d", &v.id);
+
         if(v.id == -1) break;
 
         printf("速度(km/h):"); scanf("%lf", &v.speed);
@@ -211,10 +222,10 @@ void run_input_mode(){
         
         //入力内容を保存
         if(save_to_file(v)){
-            printf("->[SUCCESS]データを保存しました\n");
+            printf("\n -> [SUCCESS]:データを保存しました\n");
         }
         else{
-            printf("->[ERROR]保存に失敗しました\n");            
+            printf("\n -> [ERROR]:保存に失敗しました\n");            
         }
     }
 }
@@ -240,11 +251,12 @@ void run_analysis_mode(){
     int warning_count = 0;
 
     if(file == NULL){
-        printf("ログファイルが見つかりません\n");
+        printf(" -> [WARNING]:ログファイルが見つかりません\n");
         return;
     }
 
     printf("\n--- 走行ログ一覧 ---\n");
+
     while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &id, &s, &t) !=EOF){
         printf("ID:%03d | 速度:%5.1f | 温度:%5.1f  ", id, s, t);
 
@@ -258,25 +270,34 @@ void run_analysis_mode(){
             printf("[SPEED_OVER]");
             warning_count++;
         }
+        else{
+            printf("            ");
+        }
         //温度の判定
         if(is_overheating(t)){
             printf("[HOT]");
+        }
+        else{
+            printf("     ");
         }
 
         printf("\n");
 
     }
+
     fclose(file);
 
-    printf("--- 分析結果 ---");
+    printf("--- 分析結果 ---\n");
+
     if(count > 0) printf("平均速度: %.1f km/h\n", total_speed / count);//is_driving
+
     printf("警告件数: %d件\n", warning_count);//is_speeding
 
     if(report_save_to_file(count, warning_count, total_speed)){
-        printf("レポートを作成しました\n");
+        printf("\n -> [SUCCESS]:レポートを作成しました\n");
     }
     else{
-        printf("レポート作成失敗\n");
+        printf("\n -> [WARNING]:レポート作成失敗\n");
     }        
 }
 
@@ -297,19 +318,19 @@ void run_search_mode(){
     double total_speed = 0.0;
 
     if(file == NULL){
-        printf("[ERROR] Not Log File\n");
+        printf("\n -> [ERROR]:Not Log File\n");
         return;
     }
 
-    printf("検索したい車両IDを入力してください:");
+    printf("\n検索したい車両IDを入力してください:");
     scanf("%d", &target_id);
 
     printf("\n--- ID:%03d の結果確認---\n", target_id);
     
     while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &log_id, &s, &t) != EOF){
+ 
         if(log_id == target_id){
             printf("速度:%5.1f | 温度:%5.1f", s, t);
-
             if(is_speeding(s)) printf("[SPEED_OVER]");
             if(is_overheating(t)) printf("[HOT]");
             printf("\n");
@@ -319,8 +340,10 @@ void run_search_mode(){
         }
     }
     fclose(file);
+
+    printf("---------------------------------\n");
+
     if(found_count > 0){
-        printf("------------\n");
         printf("該当データ件数: %d 件\n", found_count);
         printf("該当車両の平均速度: %.1f km/h\n", total_speed / found_count);
     }
@@ -341,21 +364,22 @@ void run_search_mode(){
 void run_reset_mode(){
     char confirm;
     printf("\n【警告】すべての走行ログが削除されます\n");
-    printf("\n        本当によろしいですか？(y/n):");
+    printf("         本当によろしいですか？(y/n):");
     scanf(" %c", &confirm);
 
     if(confirm == 'y' || confirm == 'Y'){
         FILE *file = fopen(LOG_FILE, "w");
+
         if(file != NULL){
             fclose(file);
-            printf("->[SUCCESS]dalet log file\n");
+            printf("\n -> [SUCCESS]:dalet log file\n");
         }
         else{
-            printf("[ERROR]\n");
+            printf("\n -> [ERROR]:\n");
         }
     }
     else{
-        printf("->キャンセルしました\n");
+        printf("\n -> [INFO]:キャンセルしました\n");
     }
 }
 
@@ -371,24 +395,15 @@ void run_reset_mode(){
 void analyze_top_speed(){
     struct Vehicle logs[MAX_LOGS]; //構造体の配列
 
-/*
-    int count = 0;
-    FILE *file = fopen(LOG_FILE, "r");
-
-    if(file == NULL) return;
-
-    //全データを配列に読み込み
-    while(count < MAX_LOGS && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
-        count++;
-    }
-    fclose(file);
-*/
-    int count = load_all_logs(logs);//上記こめんと部分をまとめ
+    int count = load_all_logs(logs);//全データ読み出しのカウント
 
     //配列の中から最高速度を捜す
     if(count > 0){
         int top_index = 0;
+
         for (int i = 1; i < count; i++){
+            
+            //現状の最高速度との比較し、更新をおこなう
             if(logs[i].speed > logs[top_index].speed){
                 top_index = i;
             }
@@ -409,20 +424,8 @@ void analyze_top_speed(){
  *******************************/
 void save_as_csv(){
     struct Vehicle logs[MAX_LOGS];//
-/*
-    int count = 0;
 
-    FILE *file = fopen(LOG_FILE, "r");
-
-    if (file == NULL) return;
-
-    //全データを配列に読み込み
-    while(count < MAX_LOGS && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
-        count++;
-    }
-    fclose(file);
-*/
-    int count = load_all_logs(logs);//上記こめんとをまとめ
+    int count = load_all_logs(logs);//全データ読み出しのカウント
 
     FILE *csv_file = fopen(CSV_FILE, "w");
     if (csv_file == NULL) return;
@@ -435,14 +438,23 @@ void save_as_csv(){
     }
     fclose(csv_file);
 
-    printf("\n[SUCCESS]CSVファイルへの保存が成功しました\n");
-
+    printf("\n -> [SUCCESS]:CSVファイルへの保存が成功しました\n");
 }
+
+/*******************************
+ *最高速度ランキング関数
+ **[概要]
+ * ログ内の速度を比較し、ランキングを作成する
+ **[引数]
+ * void
+ **[戻り値]
+ * void
+ *******************************/
 void run_speed_ranking(){
     struct Vehicle logs[MAX_LOGS];
-    int count = load_all_logs(logs);
 
-    if(count == 0) return;
+    int count = load_all_logs(logs);
+    if(count == 0) return;//データが無場合終了
 
     for(int i = 0; i < count -1; i++){
         for (int j = 0; j < count -1 -i; j++){
@@ -453,10 +465,39 @@ void run_speed_ranking(){
             }
         }
     }
-
     printf("\n--- 速度ランキング ---\n");
     for (int i = 0; i < count; i++){
         printf("%d位:ID:%03d | 速度:%.1f km/h\n", i + 1, logs[i].id, logs[i].speed);
     }
 }
 
+/*******************************
+ *速度違反車CSV出力関数
+ **[概要]
+ * CSVを作成する
+ **[引数]
+ * void
+ **[戻り値]
+ * void
+ *******************************/
+void save_as_speeding_csv(){
+    struct Vehicle logs[MAX_LOGS];
+
+    int count = load_all_logs(logs);
+    if(count == 0) return;//データが無場合終了
+
+    FILE *s_csv_file = fopen(SPEEDING_CSV_FILE, "w");
+    if (s_csv_file == NULL) return;
+
+    fprintf(s_csv_file, "--- 速度違反車リスト ---\n");
+    fprintf(s_csv_file, "ID,SPEED\n");
+
+    for(int i = 0; i < count; i++){
+        if(is_speeding(logs[i].speed)){
+            fprintf(s_csv_file, "%d,%lf\n", logs[i].id, logs[i].speed);
+
+        }
+    }
+    fclose(s_csv_file);
+    printf("\n -> [SUCCESS]:速度違反車のCSVファイルを作成しました\n");
+}
