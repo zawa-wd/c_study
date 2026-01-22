@@ -36,6 +36,7 @@ void analyze_top_speed();   //最高速度を検出20260122
 void save_as_csv();         //CSVファイル出力20260122
 void run_speed_ranking();   //最高速度ランキング20260122
 void save_as_speeding_csv();//速度違反車リスト出力(CSV)20260122
+void run_id_summary();      //車両ID毎の走行回数表示20260122
 
 /*==========================
  ****** メインルーチン *****
@@ -53,6 +54,7 @@ int main(){
         printf(" 6. CSVファイル出力\n");
         printf(" 7. ランキング出力\n");
         printf(" 8. 速度違反車の出力\n");
+        printf(" 9. 走行回数出力\n");
         printf(" 0. 終了\n");
         printf("    -> [INFO] 選択してください:");
 
@@ -70,6 +72,7 @@ int main(){
             case 6: save_as_csv(); break;
             case 7: run_speed_ranking(); break;
             case 8: save_as_speeding_csv(); break;
+            case 9: run_id_summary(); break;
             case 0: printf("    -> [INFO] 終了します\n"); return 0;
             default: printf("    -> [WARNING] 無効な選択です\n");
 
@@ -251,14 +254,14 @@ void run_analysis_mode(){
     int warning_count = 0;
 
     if(file == NULL){
-        printf(" -> [WARNING]:ログファイルが見つかりません\n");
+        printf("\n -> [WARNING]:NOT LOG FILE\n");
         return;
     }
 
     printf("\n--- 走行ログ一覧 ---\n");
 
     while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &id, &s, &t) !=EOF){
-        printf("ID:%03d | 速度:%5.1f | 温度:%5.1f  ", id, s, t);
+        printf("ID:%3d | 速度:%5.1f | 温度:%5.1f  ", id, s, t);
 
         //走行中か判定
         if(is_driving(s)){
@@ -318,14 +321,14 @@ void run_search_mode(){
     double total_speed = 0.0;
 
     if(file == NULL){
-        printf("\n -> [ERROR]:Not Log File\n");
+        printf("\n -> [WARNING]:NOT LOG FILE\n");
         return;
     }
 
     printf("\n検索したい車両IDを入力してください:");
     scanf("%d", &target_id);
 
-    printf("\n--- ID:%03d の結果確認---\n", target_id);
+    printf("\n--- ID:%3d の結果確認---\n", target_id);
     
     while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &log_id, &s, &t) != EOF){
  
@@ -364,7 +367,7 @@ void run_search_mode(){
 void run_reset_mode(){
     char confirm;
     printf("\n【警告】すべての走行ログが削除されます\n");
-    printf("         本当によろしいですか？(y/n):");
+    printf("         本当によろしいですか？(Y/N):");
     scanf(" %c", &confirm);
 
     if(confirm == 'y' || confirm == 'Y'){
@@ -372,10 +375,10 @@ void run_reset_mode(){
 
         if(file != NULL){
             fclose(file);
-            printf("\n -> [SUCCESS]:dalet log file\n");
+            printf("\n -> [SUCCESS]:DELET LOG FILE\n");
         }
         else{
-            printf("\n -> [ERROR]:\n");
+            printf("\n -> [ERROR] - \n");
         }
     }
     else{
@@ -467,14 +470,14 @@ void run_speed_ranking(){
     }
     printf("\n--- 速度ランキング ---\n");
     for (int i = 0; i < count; i++){
-        printf("%d位:ID:%03d | 速度:%.1f km/h\n", i + 1, logs[i].id, logs[i].speed);
+        printf("%2d位:ID:%3d | 速度:%5.1f km/h\n", i + 1, logs[i].id, logs[i].speed);
     }
 }
 
 /*******************************
  *速度違反車CSV出力関数
  **[概要]
- * CSVを作成する
+ * 速度違反車両をまとめてCSVを作成する
  **[引数]
  * void
  **[戻り値]
@@ -500,4 +503,47 @@ void save_as_speeding_csv(){
     }
     fclose(s_csv_file);
     printf("\n -> [SUCCESS]:速度違反車のCSVファイルを作成しました\n");
+}
+
+/*******************************
+ *走行回数出力関数
+ **[概要]
+ * 車両ID毎に走行した回数を出力する
+ **[引数]
+ * void
+ **[戻り値]
+ * void
+ *******************************/
+void run_id_summary(){
+    struct Vehicle logs[MAX_LOGS];
+
+    int count = load_all_logs(logs);
+    if (count == 0) return;
+    
+    //ID順への並び替え
+    for(int i = 0; i < count -1; i++){
+        for(int j = 0; j < count - 1 - i; j++){
+            if(logs[j].id > logs[j + 1].id){
+                struct Vehicle temp = logs[j];
+                logs[j] = logs[j + 1];
+                logs[j + 1] = temp;
+            }
+        }
+    }
+    //IDが何回出現するかカウント
+    printf("\n--- 車両別走行回数集計 ---\n");
+    int i = 0;
+    while(i < count){
+        int current_id = logs[i].id;
+        int id_count = 0;
+        double id_total_speed = 0.0;//車速合計用
+
+        //カウントアップ
+        while(i < count && logs[i].id == current_id){
+            id_total_speed += logs[i].speed;
+            id_count++;
+            i++;
+        }
+        printf("車両ID:%3d | 走行回数:%3d回 | 平均速度:%5.1f km/h\n", current_id, id_count, id_total_speed / id_count);
+    }
 }
