@@ -136,7 +136,7 @@ int is_overheating(double temp){
  * int : 保存成功時、1を返す
  *******************************/
 int save_to_file(struct Vehicle v){
-    FILE *file = fopen(LOG_FILE, "a");
+    FILE *file = fopen(LOG_FILE, "a");//LOG_FILEのデータ全てをみるのは大変だから、住所だけを渡しているイメージ
 
     if (file == NULL) return 0;
 
@@ -454,10 +454,11 @@ void save_as_csv(){
  * void
  *******************************/
 //2重ループをよく理解する。イメージは植木算しながら右端をどんどん決定しているいめーじ
+//隣同士でそれぞれ比較して、おそい車をどんどん移動するイメージ
 void run_speed_ranking(){
     struct Vehicle logs[MAX_LOGS];
 
-    int count = load_all_logs(logs);
+    int count = load_all_logs(logs);//空箱の作成(ここに詰めていく
     if(count == 0) return;//データが無場合終了
 
     for(int i = 0; i < count -1; i++){
