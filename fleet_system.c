@@ -26,12 +26,14 @@ int  is_speeding         (double speed);     //スピードオーバーである
 int  is_overheating      (double temp);      //温度の判定
 int  save_to_file        (struct Vehicle v); //保存用関数
 int  report_save_to_file (int count, int warning_count, double total_speed); //レポート作成用関数
+int  load_all_logs       (struct Vehicle logs[]); //20260122
 void run_input_mode();      //入力用関数
 void run_analysis_mode();   //出力用関数
 void run_search_mode();     //検索用関数20260122
 void run_reset_mode();      //初期化関数20260122
 void analyze_top_speed();   //最高速度を検出20260122
-void save_as_csv(); //CSVファイル出力20260122
+void save_as_csv();         //CSVファイル出力20260122
+void run_speed_ranking();   //20260122
 
 /*==========================
  ****** メインルーチン *****
@@ -47,6 +49,7 @@ int main(){
         printf("4. LOG初期化\n");
         printf("5. 最高速度検出\n");
         printf("6. CSVファイル出力\n");
+        printf("7. ランキング出力\n");
         printf("0. 終了\n");
         printf("   選択してください:");
 
@@ -62,6 +65,7 @@ int main(){
             case 4: run_reset_mode(); break;
             case 5: analyze_top_speed(); break;
             case 6: save_as_csv(); break;
+            case 7: run_speed_ranking(); break;
             case 0: printf("終了します\n"); return 0;
             default: printf("無効な選択です\n");
 
@@ -165,6 +169,27 @@ int report_save_to_file(int count,int warning_count, double total_speed){
     return 1;
 }
 
+/*******************************
+ *関数
+ **[概要]
+ * ファイルから全データを配列に読み込み
+ **[引数]
+ * struct Vehicle logs[] :保存対象の車両データ構造体(ID、車速、温度を含む)
+ **[戻り値]
+ * int : count(読み込んだ件数を返す)
+ *******************************/
+int load_all_logs(struct Vehicle logs[]){
+    int count = 0;
+    FILE *file = fopen(LOG_FILE,"r");
+    if(file == NULL) return 0;
+    
+    while(count < MAX_LOGS && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
+        count++;
+    }
+    fclose(file);
+    return count;
+}
+
 /*****************************
  * 入力関数
  **[概要]
@@ -233,7 +258,7 @@ void run_analysis_mode(){
             printf("[SPEED_OVER]");
             warning_count++;
         }
-        //温度判定
+        //温度の判定
         if(is_overheating(t)){
             printf("[HOT]");
         }
@@ -345,6 +370,8 @@ void run_reset_mode(){
  *****************************/
 void analyze_top_speed(){
     struct Vehicle logs[MAX_LOGS]; //構造体の配列
+
+/*
     int count = 0;
     FILE *file = fopen(LOG_FILE, "r");
 
@@ -355,6 +382,8 @@ void analyze_top_speed(){
         count++;
     }
     fclose(file);
+*/
+    int count = load_all_logs(logs);//上記こめんと部分をまとめ
 
     //配列の中から最高速度を捜す
     if(count > 0){
@@ -380,7 +409,9 @@ void analyze_top_speed(){
  *******************************/
 void save_as_csv(){
     struct Vehicle logs[MAX_LOGS];//
+/*
     int count = 0;
+
     FILE *file = fopen(LOG_FILE, "r");
 
     if (file == NULL) return;
@@ -390,9 +421,11 @@ void save_as_csv(){
         count++;
     }
     fclose(file);
+*/
+    int count = load_all_logs(logs);//上記こめんとをまとめ
 
     FILE *csv_file = fopen(CSV_FILE, "w");
-    if (file == NULL) return;
+    if (csv_file == NULL) return;
 
     fprintf(csv_file, "ID,SPEED,TEMP\n");
 
@@ -405,3 +438,25 @@ void save_as_csv(){
     printf("\n[SUCCESS]CSVファイルへの保存が成功しました\n");
 
 }
+void run_speed_ranking(){
+    struct Vehicle logs[MAX_LOGS];
+    int count = load_all_logs(logs);
+
+    if(count == 0) return;
+
+    for(int i = 0; i < count -1; i++){
+        for (int j = 0; j < count -1 -i; j++){
+            if(logs[j].speed < logs[j + 1].speed){
+                struct Vehicle temp = logs[j];
+                logs[j] = logs[j + 1];
+                logs[j + 1] = temp;
+            }
+        }
+    }
+
+    printf("\n--- 速度ランキング ---\n");
+    for (int i = 0; i < count; i++){
+        printf("%d位:ID:%03d | 速度:%.1f km/h\n", i + 1, logs[i].id, logs[i].speed);
+    }
+}
+
