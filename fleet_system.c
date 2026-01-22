@@ -26,7 +26,8 @@ int  save_to_file        (struct Vehicle v); //保存用関数
 int  report_save_to_file (int count, int warning_count, double total_speed); //レポート作成用関数
 void run_input_mode();      //入力用関数
 void run_analysis_mode();   //出力用関数
-void run_search_mode();      //検索用関数20260122
+void run_search_mode();     //検索用関数20260122
+void run_reset_mode();      //初期化関数20260122
 
 /*==========================
  ****** メインルーチン *****
@@ -39,7 +40,8 @@ int main(){
         printf("1. 車両データの入力/保存\n");
         printf("2. ログの表示/分析\n");
         printf("3. 車両ID検索\n");
-        printf("4. 終了\n");
+        printf("4. LOG初期化\n");
+        printf("5. 終了\n");
         printf("   選択してください:");
 
         if(scanf("%d", &choice) != 1){
@@ -51,7 +53,8 @@ int main(){
             case 1: run_input_mode(); break;
             case 2: run_analysis_mode(); break;
             case 3: run_search_mode(); break;
-            case 4: printf("終了します\n"); return 0;
+            case 4: run_reset_mode(); break;
+            case 5: printf("終了します\n"); return 0;
             default: printf("無効な選択です\n");
 
         }
@@ -290,5 +293,35 @@ void run_search_mode(){
     }
     else{
         printf("該当車両は見つかりませんでした\n");
+    }
+}
+
+/*****************************
+ * 初期化関数 
+ **[概要]
+ *LOG_FILEを初期化する機能
+ **[引数]
+ * void
+ **[戻り値]
+ * void
+ *****************************/
+void run_reset_mode(){
+    char confirm;
+    printf("\n【警告】すべての走行ログが削除されます\n");
+    printf("\n        本当によろしいですか？(y/n):");
+    scanf(" %c", &confirm);
+
+    if(confirm == 'y' || confirm == 'Y'){
+        FILE *file = fopen(LOG_FILE, "w");
+        if(file != NULL){
+            fclose(file);
+            printf("->[SUCCESS]dalet log file\n");
+        }
+        else{
+            printf("[ERROR]\n");
+        }
+    }
+    else{
+        printf("->キャンセルしました\n");
     }
 }
