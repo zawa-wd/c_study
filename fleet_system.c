@@ -299,6 +299,7 @@ void run_analysis_mode(){
             warning_count++;
         }
         else{
+            //[HOT]の列をあわせるため
             printf("            ");
         }
         //温度の判定
@@ -421,13 +422,14 @@ void run_reset_mode(){
  * void
  *****************************/
 void analyze_top_speed(){
-    //まず件数を数える
+    //ログ件数のカウント
     int total_count = get_log_count();
     if(total_count == 0){
-        printf("データがありません\n");
+        printf("\n -> [INFO]:データがありません\n");
         return;
     }
 
+    //件数分だけlogsの箱を作成する
     struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle)* total_count);
     if(logs == NULL) return;
 
@@ -435,8 +437,10 @@ void analyze_top_speed(){
 
     if(count == 0){
         free(logs);
-        return;
+        printf("\n -> [ERROR]:データが見つかりませんでした\n");
+        return;//データが無場合終了
     }
+
     //配列の中から最高速度を捜す
     if(count > 0){
         int top_index = 0;
@@ -463,12 +467,15 @@ void analyze_top_speed(){
  **[戻り値]
  * void
  *******************************/
-void save_as_csv(){
-
+void save_as_csv(){    
+    //ログ件数のカウント
     int total_count = get_log_count();
+    if(total_count == 0){
+        printf("\n -> [INFO]:データがありません\n");
+        return;
+    }
 
-    if(total_count == 0) return;
-
+    //ログ件数分だけ空箱を作る
     struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
 
     if(logs == NULL) return;
@@ -477,7 +484,8 @@ void save_as_csv(){
 
     if(count == 0){
         free(logs);
-        return;
+        printf("\n -> [ERROR]:データが見つかりませんでした\n");
+        return;//データが無場合終了
     }
 
     FILE *csv_file = fopen(CSV_FILE, "w");//ポインタを利用してファイルの住所を教えているイメージ
@@ -509,9 +517,12 @@ void save_as_csv(){
 //2重ループをよく理解する。イメージは植木算しながら右端をどんどん決定しているいめーじ
 //隣同士でそれぞれ比較して、おそい車をどんどん移動するイメージ
 void run_speed_ranking(){
+    //ログ件数のカウント
     int total_count = get_log_count();
-
-    if(total_count == 0) return;
+    if(total_count == 0){
+        printf("\n -> [INFO]:データがありません\n");
+        return;
+    }
 
     struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle) * total_count);
 
@@ -521,8 +532,10 @@ void run_speed_ranking(){
 
     if(count == 0){
         free(logs);
+        printf("\n -> [ERROR]:データが見つかりませんでした\n");
         return;//データが無場合終了
     }
+
     for(int i = 0; i < count -1; i++){
         for (int j = 0; j < count -1 -i; j++){
             if(logs[j].speed < logs[j + 1].speed){
@@ -549,9 +562,12 @@ void run_speed_ranking(){
  * void
  *******************************/
 void save_as_speeding_csv(){
-
+    //ログ件数のカウント
     int total_count = get_log_count();
-    if(total_count == 0) return;
+    if(total_count == 0){
+        printf("\n -> [INFO]:データがありません\n");
+        return;
+    }
 
     struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
     
@@ -562,7 +578,7 @@ void save_as_speeding_csv(){
 
     if(count == 0){
         free(logs);
-        printf("[ERROR] データが見つかりませんでした\n");
+        printf("\n -> [ERROR]:データが見つかりませんでした\n");
         return;//データが無場合終了
     }
 
@@ -596,20 +612,25 @@ void save_as_speeding_csv(){
  * void
  *******************************/
 void run_id_summary(){
-    //ここからは動的(malloc)
+    //ログ件数のカウント
     int total_count = get_log_count();
-    if(total_count == 0) return;
-
+    if(total_count == 0){
+        printf("\n -> [INFO]:データがありません\n");
+        return;
+    }
+     
+    //ここからは動的(malloc)
     struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
     if(logs == NULL) return;
 
     int count = load_all_logs(logs, total_count);
 
-    if (count == 0){
-        free(logs);//データが空でも返す必要がある。
-        printf("[ERROR] メモリの確保に失敗しました\n");
-        return;
+    if(count == 0){
+        free(logs);
+        printf("\n -> [ERROR]:データが見つかりませんでした\n");
+        return;//データが無場合終了
     }
+    
     //ID順への並び替え
     for(int i = 0; i < count -1; i++){
         for(int j = 0; j < count - 1 - i; j++){
