@@ -1,4 +1,4 @@
-/**********************
+/***********************
  *C言語練習用プログラム
  *作成日:20260121
  *更新日:20260126
@@ -13,8 +13,6 @@
 #define REPORT_FILE       "analysis_report.txt"
 #define SPEED_LIMIT  100.0  //最高速度
 #define TEMP_LIMIT   80.0   //温度チェック
-                            //maloc対応で不要になる可能性あり
-#define MAX_LOGS     999    //999件までメモリに載せる
 
 /*--- データ構造の定義 ---*/
 struct Vehicle{
@@ -29,7 +27,8 @@ int  is_speeding         (double speed);     //スピードオーバーである
 int  is_overheating      (double temp);      //温度の判定
 int  save_to_file        (struct Vehicle v); //保存用関数
 int  report_save_to_file (int count, int warning_count, double total_speed); //レポート作成用関数
-int  load_all_logs       (struct Vehicle logs[]); //全ログ数カウント20260122
+int  load_all_logs       (struct Vehicle logs[], int limit); //全ログ数カウント20260122
+int  get_log_count();       //ログ件数カウント20260126
 void run_input_mode();      //入力用関数
 void run_analysis_mode();   //出力用関数
 void run_search_mode();     //検索用関数20260122
@@ -190,16 +189,40 @@ int report_save_to_file(int count,int warning_count, double total_speed){
  **[戻り値]
  * int : count(読み込んだ件数を返す)
  *******************************/
-int load_all_logs(struct Vehicle logs[]){
+int load_all_logs(struct Vehicle logs[], int limit){
     FILE *file = fopen(LOG_FILE,"r");
     int count = 0;
     
     if(file == NULL) return 0;
     
-    while(count < MAX_LOGS && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
+    while(count < limit && fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &logs[count].id, &logs[count].speed, &logs[count].temp) != EOF){
         count++;
     }
 
+    fclose(file);
+    return count;
+}
+
+/*******************************
+ *ログ件数カウント関数
+ **[概要]
+ * ファイルを開き、データが何件あるかを数える
+ **[引数]
+ * void
+ **[戻り値]
+ * int : count(読み込んだ件数を返す)
+ *******************************/
+int get_log_count(){
+    FILE *file = fopen(LOG_FILE, "r");
+    if(file == NULL) return 0;
+    
+    int count = 0;
+    int id;
+    double s, t;
+
+    while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &id, &s, &t) != EOF){
+        count++;
+    }
     fclose(file);
     return count;
 }
@@ -398,10 +421,17 @@ void run_reset_mode(){
  * void
  *****************************/
 void analyze_top_speed(){
-    struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle)* MAX_LOGS);
+    //まず件数を数える
+    int total_count = get_log_count();
+    if(total_count == 0){
+        printf("データがありません\n");
+        return;
+    }
+
+    struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle)* total_count);
     if(logs == NULL) return;
 
-    int count = load_all_logs(logs);//全データ読み出しのカウント
+    int count = load_all_logs(logs, total_count);//全データ読み出しのカウント
 
     if(count == 0){
         free(logs);
@@ -434,11 +464,16 @@ void analyze_top_speed(){
  * void
  *******************************/
 void save_as_csv(){
-    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) *MAX_LOGS);
+
+    int total_count = get_log_count();
+
+    if(total_count == 0) return;
+
+    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
 
     if(logs == NULL) return;
 
-    int count = load_all_logs(logs);//全データ読み出しのカウント
+    int count = load_all_logs(logs, total_count);//全データ読み出しのカウント
 
     if(count == 0){
         free(logs);
@@ -474,12 +509,15 @@ void save_as_csv(){
 //2重ループをよく理解する。イメージは植木算しながら右端をどんどん決定しているいめーじ
 //隣同士でそれぞれ比較して、おそい車をどんどん移動するイメージ
 void run_speed_ranking(){
-    //struct Vehicle logs[MAX_LOGS];
-    struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle) *MAX_LOGS);
+    int total_count = get_log_count();
+
+    if(total_count == 0) return;
+
+    struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle) * total_count);
 
     if(logs == NULL) return;
 
-    int count = load_all_logs(logs);//空箱の作成(ここに詰めていく
+    int count = load_all_logs(logs, total_count);//空箱の作成(ここに詰めていく
 
     if(count == 0){
         free(logs);
@@ -511,12 +549,16 @@ void run_speed_ranking(){
  * void
  *******************************/
 void save_as_speeding_csv(){
-    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * MAX_LOGS);
+
+    int total_count = get_log_count();
+    if(total_count == 0) return;
+
+    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
     
     //最初にチェック
     if(logs == NULL) return;
     //安全確認後、読み込み
-    int count = load_all_logs(logs);
+    int count = load_all_logs(logs, total_count);
 
     if(count == 0){
         free(logs);
@@ -554,14 +596,14 @@ void save_as_speeding_csv(){
  * void
  *******************************/
 void run_id_summary(){
-
-    //今までは固定値
-    //struct Vehicle logs[MAX_LOGS];
     //ここからは動的(malloc)
-    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * MAX_LOGS);
+    int total_count = get_log_count();
+    if(total_count == 0) return;
+
+    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
     if(logs == NULL) return;
 
-    int count = load_all_logs(logs);
+    int count = load_all_logs(logs, total_count);
 
     if (count == 0){
         free(logs);//データが空でも返す必要がある。
