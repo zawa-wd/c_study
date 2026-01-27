@@ -4,7 +4,8 @@
  *更新日:20260126
  ***********************/
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h>//20260122 mallocとfreeを使うため追加(atoi,exit)
+#include <string.h>//20260126 コマンドライン引数を利用するため追加
 
 /*--- 設定 ---*/
 #define LOG_FILE          "fleet_log.txt"
@@ -13,6 +14,24 @@
 #define REPORT_FILE       "analysis_report.txt"
 #define SPEED_LIMIT  100.0  //最高速度
 #define TEMP_LIMIT   80.0   //温度チェック
+
+char log_file_path[256]     = LOG_FILE;
+char csv_file_path[256]     = CSV_FILE;
+char speeding_csv_path[256] = SPEEDING_CSV_FILE;
+
+//列挙型の定義
+enum MenuChoice {
+    EXIT =          0,
+    INPUT =         1,
+    RESET =         2,
+    ANALYSIS =     11,
+    SEARCH =       12,
+    TOP_SPEED =    13,
+    RANKING =      14,
+    SUMMARY =      15,
+    CSV_OUT =      21,
+    SPEEDING_CSV = 22
+};
 
 /*--- データ構造の定義 ---*/
 struct Vehicle{
@@ -29,53 +48,58 @@ int  save_to_file        (struct Vehicle v); //保存用関数
 int  report_save_to_file (int count, int warning_count, double total_speed); //レポート作成用関数
 int  load_all_logs       (struct Vehicle logs[], int limit); //全ログ数カウント20260122
 int  get_log_count();       //ログ件数カウント20260126
+void handle_args(int argc, char *argv[]);//コマンドライン引数用20260126
+void print_menu          (int current_coount);//メニュー表示用20260126
 void run_input_mode();      //入力用関数
 void run_analysis_mode();   //出力用関数
-void run_search_mode();     //検索用関数20260122
+void run_search_mode();     //メニューからの検索用関数20260122
 void run_reset_mode();      //初期化関数20260122
 void analyze_top_speed();   //最高速度を検出20260122
 void save_as_csv();         //CSVファイル出力20260122
 void run_speed_ranking();   //最高速度ランキング20260122
 void save_as_speeding_csv();//速度違反車リスト出力(CSV)20260122
 void run_id_summary();      //車両ID毎の走行回数表示20260122
+void search_by_id(int target_id);   //車両ID検索関数20260127
+struct Vehicle* get_all_logs_dynamic(int *out_count);   //動的関数20260127
 
 /*==========================
  ****** メインルーチン *****
  *==========================*/
-int main(){
+int main(int argc, char *argv[]){
+    //コマンドライン引数処理
+    handle_args(argc, argv);
+
     int choice;
 
     while(1){
-        printf("\n=== 車両管理システムメニュー ===\n");
-        printf(" 1. 車両データの入力/保存\n");
-        printf(" 2. ログの表示/分析\n");
-        printf(" 3. 車両ID検索\n");
-        printf(" 4. LOG初期化\n");
-        printf(" 5. 最高速度検出\n");
-        printf(" 6. CSVファイル出力\n");
-        printf(" 7. ランキング出力\n");
-        printf(" 8. 速度違反車の出力\n");
-        printf(" 9. 走行回数出力\n");
-        printf(" 0. 終了\n");
-        printf("    -> [INFO] 選択してください:");
+        //メニューを表示する前に件数を確認
+        int current_count = get_log_count();
+        
+        //メニュー表示
+        print_menu(current_count);
 
         if(scanf("%d", &choice) != 1){
             while(getchar() != '\n'); //数字以外の入力対策
             continue;
         }
+       
+        if(choice !=0 && choice != 1 && current_count == 0){
+            printf("\n -> [WARNING]:No data\n"); //データなしの入力対策
+            continue;
+        }
 
         switch(choice){
-            case 1: run_input_mode();       break;
-            case 2: run_analysis_mode();    break;
-            case 3: run_search_mode();      break;
-            case 4: run_reset_mode();       break;
-            case 5: analyze_top_speed();    break;
-            case 6: save_as_csv();          break;
-            case 7: run_speed_ranking();    break;
-            case 8: save_as_speeding_csv(); break;
-            case 9: run_id_summary();       break;
-            case 0: printf("    -> [INFO] 終了します\n"); return 0;
-            default: printf("    -> [WARNING] 無効な選択です\n");
+            case INPUT:          run_input_mode();       break;
+            case RESET:          run_reset_mode();       break;
+            case ANALYSIS:       run_analysis_mode();    break;
+            case SEARCH:         run_search_mode();      break;
+            case TOP_SPEED:      analyze_top_speed();    break;
+            case RANKING:        run_speed_ranking();    break;
+            case SUMMARY:        run_id_summary();       break;
+            case CSV_OUT:        save_as_csv();          break;
+            case SPEEDING_CSV:   save_as_speeding_csv(); break;
+            case EXIT: printf("    -> [INFO] 終了します\n"); return 0;
+            default: printf("    -> [WARNING] 無効な数値です\n");
 
         }
     }
@@ -84,6 +108,98 @@ int main(){
 /*=====================
  ***** 各機能関数 *****
  *=====================*/
+
+/****************************
+ * コマンドライン引数用関数
+ **[概要]
+ *コマンドライン引数を設定する
+ **[引数]
+ * void:
+ **[戻り値]
+ * void
+ ****************************/
+void handle_args(int argc, char *argv[]){
+
+    //LOG FILEを指定利用可能に変更
+    for(int i = 1; i < argc; i++){
+        if(strcmp(argv[i], "--file") == 0 && i + 1 < argc){
+            strcpy(log_file_path, argv[i+1]);
+            printf(" -> [INFO]: 読み込みファイルを %s に変更しました\n", log_file_path);
+        }
+    }
+
+    //引数がなければ何もしない
+    if(argc < 2) return;
+
+    if(strcmp(argv[1], "--ranking") == 0){
+        run_speed_ranking();
+    }
+    else if(strcmp(argv[1], "--summary") == 0){
+        run_id_summary();
+    }
+    else if(strcmp(argv[1], "--csv") == 0){
+        save_as_csv();
+    }
+    else if(strcmp(argv[1], "--search") == 0){
+        if(argc < 3){
+            printf("\n -> [ERROR]:IDを指定してください\n");
+            printf("            (例：--search 101)\n");
+            exit(1);
+        };
+        
+        int target_id = atoi(argv[2]);  //atoiを利用してint型へ変換
+        search_by_id(target_id);        //関数呼出
+        
+    }
+    else{
+        printf("Usage: %s [オプション]\n", argv[0]);
+        printf("オプション:\n");
+        printf(" --ranking     : 速度ランキングを表示\n");
+        printf(" --summary     : 車両別集計を表示\n");
+        printf(" --csv         : csvファイル出力\n");
+        printf(" --search [ID] : 車両IDの車について検索します\n");
+    }
+    exit(0); //引数がある場合は、処理して終了
+}
+
+/****************************
+ * メインメニュー関数
+ **[概要]
+ *
+ **[引数]
+ * int current_count :
+ **[戻り値]
+ * void
+ ****************************/
+void print_menu(int current_count){
+    char *NO_DATA = (current_count == 0)? "[!] No Data":"";
+
+    printf("\n===============================\n");
+    printf("    車両データ管理システム\n");
+    printf("   [現在の登録件数：%3d 件]\n",current_count);
+    printf("===============================\n");
+
+    printf("\n【記録・登録】\n");
+    printf("  01.走行データの新規入力\n");
+    printf(" %s 02. LOG初期化\n", NO_DATA);
+    
+    printf("\n【分析・検索】\n");
+    printf(" %s 11. ログの表示/分析\n", NO_DATA);
+    printf(" %s 12. 車両ID検索\n", NO_DATA);
+    printf(" %s 13. 最高速度検出\n", NO_DATA);
+    printf(" %s 14. ランキング出力\n", NO_DATA);
+    printf(" %s 15. 走行回数出力\n", NO_DATA);
+
+    printf("\n【外部出力・保存】\n");
+    printf(" %s 21. CSVファイル出力\n",NO_DATA);
+    printf(" %s 22. 速度違反車の出力\n",NO_DATA);
+
+    printf("\n 【0. 終了】\n");
+
+    printf("\n===============================\n");
+
+    printf("\n >> 選択してください:");
+}
 
 /****************************
  * 走行判定関数
@@ -137,7 +253,7 @@ int is_overheating(double temp){
  * int : 保存成功時、1を返す
  *******************************/
 int save_to_file(struct Vehicle v){
-    FILE *file = fopen(LOG_FILE, "a");//LOG_FILEのデータ全てをみるのは大変だから、住所だけを渡しているイメージ
+    FILE *file = fopen(log_file_path, "a");//LOG_FILEのデータ全てをみるのは大変だから、住所だけを渡しているイメージ
 
     if (file == NULL) return 0;
 
@@ -190,7 +306,7 @@ int report_save_to_file(int count,int warning_count, double total_speed){
  * int : count(読み込んだ件数を返す)
  *******************************/
 int load_all_logs(struct Vehicle logs[], int limit){
-    FILE *file = fopen(LOG_FILE,"r");
+    FILE *file = fopen(log_file_path,"r");
     int count = 0;
     
     if(file == NULL) return 0;
@@ -213,7 +329,7 @@ int load_all_logs(struct Vehicle logs[], int limit){
  * int : count(読み込んだ件数を返す)
  *******************************/
 int get_log_count(){
-    FILE *file = fopen(LOG_FILE, "r");
+    FILE *file = fopen(log_file_path, "r");
     if(file == NULL) return 0;
     
     int count = 0;
@@ -269,7 +385,7 @@ void run_input_mode(){
  * void
  *****************************/
 void run_analysis_mode(){
-    FILE *file = fopen(LOG_FILE, "r");
+    FILE *file = fopen(log_file_path, "r");
     int id;
     double s, t;
 
@@ -340,45 +456,12 @@ void run_analysis_mode(){
  * void
  *****************************/
 void run_search_mode(){
-    FILE *file = fopen(LOG_FILE, "r");
-    int target_id, log_id;
-    double s, t;
-    int found_count = 0;
-    double total_speed = 0.0;
-
-    if(file == NULL){
-        printf("\n -> [WARNING]:NOT LOG FILE\n");
-        return;
-    }
+    int target_id;
 
     printf("\n検索したい車両IDを入力してください:");
     scanf("%d", &target_id);
 
-    printf("\n--- ID:%3d の結果確認---\n", target_id);
-    
-    while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &log_id, &s, &t) != EOF){
- 
-        if(log_id == target_id){
-            printf("速度:%5.1f | 温度:%5.1f", s, t);
-            if(is_speeding(s)) printf("[SPEED_OVER]");
-            if(is_overheating(t)) printf("[HOT]");
-            printf("\n");
-
-            total_speed += s;
-            found_count++;
-        }
-    }
-    fclose(file);
-
-    printf("---------------------------------\n");
-
-    if(found_count > 0){
-        printf("該当データ件数: %d 件\n", found_count);
-        printf("該当車両の平均速度: %.1f km/h\n", total_speed / found_count);
-    }
-    else{
-        printf("該当車両は見つかりませんでした\n");
-    }
+    search_by_id(target_id);//検索ロジック呼出
 }
 
 /*****************************
@@ -397,7 +480,7 @@ void run_reset_mode(){
     scanf(" %c", &confirm);
 
     if(confirm == 'y' || confirm == 'Y'){
-        FILE *file = fopen(LOG_FILE, "w");
+        FILE *file = fopen(log_file_path, "w");
 
         if(file != NULL){
             fclose(file);
@@ -422,39 +505,25 @@ void run_reset_mode(){
  * void
  *****************************/
 void analyze_top_speed(){
-    //ログ件数のカウント
-    int total_count = get_log_count();
-    if(total_count == 0){
-        printf("\n -> [INFO]:データがありません\n");
-        return;
-    }
-
-    //件数分だけlogsの箱を作成する
-    struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle)* total_count);
-    if(logs == NULL) return;
-
-    int count = load_all_logs(logs, total_count);//全データ読み出しのカウント
-
-    if(count == 0){
-        free(logs);
-        printf("\n -> [ERROR]:データが見つかりませんでした\n");
-        return;//データが無場合終了
-    }
+    int count;
+    struct Vehicle *logs = get_all_logs_dynamic(&count);//動的読み込み関数
 
     //配列の中から最高速度を捜す
-    if(count > 0){
-        int top_index = 0;
-
-        for (int i = 1; i < count; i++){
-            
-            //現状の最高速度との比較し、更新をおこなう
-            if(logs[i].speed > logs[top_index].speed){
-                top_index = i;
-            }
-        }
-        printf("\n[最高速度記録]\n");
-        printf("車両ID:%03d | 速度:%.1f km/h\n",logs[top_index].id, logs[top_index].speed);
+    if(logs == NULL){
+        printf("");
+        return;
     }
+     
+    int top_index = 0;
+    for (int i = 1; i < count; i++){
+        
+        //現状の最高速度との比較し、更新をおこなう
+        if(logs[i].speed > logs[top_index].speed){
+            top_index = i;
+        }
+    }
+    printf("\n[最高速度記録]\n");
+    printf("車両ID:%03d | 速度:%.1f km/h\n",logs[top_index].id, logs[top_index].speed);
     free(logs);
 }
 
@@ -469,26 +538,14 @@ void analyze_top_speed(){
  *******************************/
 void save_as_csv(){    
     //ログ件数のカウント
-    int total_count = get_log_count();
-    if(total_count == 0){
+    int count;
+    struct Vehicle *logs = get_all_logs_dynamic(&count);
+        if(logs == NULL){
         printf("\n -> [INFO]:データがありません\n");
         return;
     }
 
-    //ログ件数分だけ空箱を作る
-    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
-
-    if(logs == NULL) return;
-
-    int count = load_all_logs(logs, total_count);//全データ読み出しのカウント
-
-    if(count == 0){
-        free(logs);
-        printf("\n -> [ERROR]:データが見つかりませんでした\n");
-        return;//データが無場合終了
-    }
-
-    FILE *csv_file = fopen(CSV_FILE, "w");//ポインタを利用してファイルの住所を教えているイメージ
+    FILE *csv_file = fopen(csv_file_path, "w");//ポインタを利用してファイルの住所を教えているイメージ
     if (csv_file == NULL){
         free(logs);
         return;
@@ -518,22 +575,11 @@ void save_as_csv(){
 //隣同士でそれぞれ比較して、おそい車をどんどん移動するイメージ
 void run_speed_ranking(){
     //ログ件数のカウント
-    int total_count = get_log_count();
-    if(total_count == 0){
+    int count;
+    struct Vehicle *logs = get_all_logs_dynamic(&count);
+    if(logs == NULL){
         printf("\n -> [INFO]:データがありません\n");
         return;
-    }
-
-    struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle) * total_count);
-
-    if(logs == NULL) return;
-
-    int count = load_all_logs(logs, total_count);//空箱の作成(ここに詰めていく
-
-    if(count == 0){
-        free(logs);
-        printf("\n -> [ERROR]:データが見つかりませんでした\n");
-        return;//データが無場合終了
     }
 
     for(int i = 0; i < count -1; i++){
@@ -563,26 +609,15 @@ void run_speed_ranking(){
  *******************************/
 void save_as_speeding_csv(){
     //ログ件数のカウント
-    int total_count = get_log_count();
-    if(total_count == 0){
+    int count;
+    struct Vehicle *logs = get_all_logs_dynamic(&count);
+
+    if(logs == NULL){
         printf("\n -> [INFO]:データがありません\n");
         return;
     }
 
-    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
-    
-    //最初にチェック
-    if(logs == NULL) return;
-    //安全確認後、読み込み
-    int count = load_all_logs(logs, total_count);
-
-    if(count == 0){
-        free(logs);
-        printf("\n -> [ERROR]:データが見つかりませんでした\n");
-        return;//データが無場合終了
-    }
-
-    FILE *s_csv_file = fopen(SPEEDING_CSV_FILE, "w");
+    FILE *s_csv_file = fopen(speeding_csv_path, "w");
     if (s_csv_file == NULL){
         free(logs);
         return;
@@ -603,8 +638,7 @@ void save_as_speeding_csv(){
 }
 
 /*******************************
- *走行回数出力関数
- **[概要]
+ *走行回数出力関数 **[概要]
  * 車両ID毎に走行した回数を出力する
  **[引数]
  * void
@@ -612,23 +646,13 @@ void save_as_speeding_csv(){
  * void
  *******************************/
 void run_id_summary(){
+    int count;
+    struct Vehicle *logs = get_all_logs_dynamic(&count);
+
     //ログ件数のカウント
-    int total_count = get_log_count();
-    if(total_count == 0){
+    if(logs == NULL){
         printf("\n -> [INFO]:データがありません\n");
         return;
-    }
-     
-    //ここからは動的(malloc)
-    struct Vehicle *logs = (struct Vehicle *)malloc(sizeof(struct Vehicle) * total_count);
-    if(logs == NULL) return;
-
-    int count = load_all_logs(logs, total_count);
-
-    if(count == 0){
-        free(logs);
-        printf("\n -> [ERROR]:データが見つかりませんでした\n");
-        return;//データが無場合終了
     }
     
     //ID順への並び替え
@@ -660,4 +684,87 @@ void run_id_summary(){
     }
 
     free(logs);
+}
+
+/*******************************
+ *検索ロジック関数
+ **[概要]
+ * ID車両の検索をおこなう関数
+ **[引数]
+ * int target_id(検索したい車両ID)
+ **[戻り値]
+ * void
+ *******************************/
+void search_by_id(int target_id){   
+    FILE *file = fopen(log_file_path, "r");
+    int log_id;
+    double s, t;
+    int found_count = 0;
+    double total_speed = 0.0;
+
+    if(file == NULL){
+        printf("\n -> [WARNING]:NOT LOG FILE\n");
+        return;
+    }
+
+    printf("\n--- ID:%3d の結果確認---\n", target_id);
+    
+    while (fscanf(file, "ID:%d | SPEED:%lf | TEMP:%lf |\n", &log_id, &s, &t) != EOF){
+ 
+        if(log_id == target_id){
+            printf("速度:%5.1f | 温度:%5.1f", s, t);
+            if(is_speeding(s)) printf("[SPEED_OVER]");
+            if(is_overheating(t)) printf("[HOT]");
+            printf("\n");
+
+            total_speed += s;
+            found_count++;
+        }
+    }
+    fclose(file);
+
+    printf("---------------------------------\n");
+
+    if(found_count > 0){
+        printf("該当データ件数: %d 件\n", found_count);
+        printf("該当車両の平均速度: %.1f km/h\n", total_speed / found_count);
+    }
+    else{
+        printf("該当車両は見つかりませんでした\n");
+    }
+}
+
+/*******************************
+ *全ログ動的読み込み関数
+ **[概要]
+ * 現在のログ件数を確認し、メモリを確保して全データを読み込む
+ **[引数]
+ * int *out_count : 読み込んだ件数を書き込むためのポインタ
+ * 補足：引数は▼全てからっぽだが、これに読み込んだ件数を入れてもらうために引数を渡す
+ *       戻り値は確保したメモリの場所(住所)を返すために使用しているため、この方法とする
+ **[戻り値]
+ * struct Vehicle* : 確保したメモリのポインタ(住所)
+ *******************************/
+struct Vehicle* get_all_logs_dynamic(int *out_count){
+
+    int total = get_log_count();//ファイルを開きLOGの件数を出す
+
+    //LOGの件数が0件の場合
+    if(total == 0){
+        *out_count = 0;
+        return NULL;
+    }
+    
+    //logがある場合、必要分のメモリを用意する
+    struct Vehicle *logs = (struct Vehicle*)malloc(sizeof(struct Vehicle) * total);
+
+    //logに読み込めるデータが無い場合
+    if(logs == NULL){
+        *out_count = 0;
+        return NULL;
+    }
+    
+    //読み込んだデータを書き出す
+    *out_count = load_all_logs(logs, total);
+    return logs;
 }
