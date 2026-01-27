@@ -78,7 +78,7 @@ int main(int argc, char *argv[]){
  * void
  ****************************/
 void print_menu(int current_count){
-    char *NO_DATA = (current_count == 0)? "[!] No Data":"";
+    char *no_data = (current_count == 0)? "[!] NO DATA":"";
 
     printf("\n===============================\n");
     printf("    車両データ管理システム\n");
@@ -87,18 +87,18 @@ void print_menu(int current_count){
 
     printf("\n【記録・登録】\n");
     printf("  01.走行データの新規入力\n");
-    printf(" %s 02. LOG初期化\n", NO_DATA);
+    printf(" %s 02. LOG初期化\n", no_data);
     
     printf("\n【分析・検索】\n");
-    printf(" %s 11. ログの表示/分析\n", NO_DATA);
-    printf(" %s 12. 車両ID検索\n", NO_DATA);
-    printf(" %s 13. 最高速度検出\n", NO_DATA);
-    printf(" %s 14. ランキング出力\n", NO_DATA);
-    printf(" %s 15. 走行回数出力\n", NO_DATA);
+    printf(" %s 11. ログの表示/分析\n", no_data);
+    printf(" %s 12. 車両ID検索\n", no_data);
+    printf(" %s 13. 最高速度検出\n", no_data);
+    printf(" %s 14. ランキング出力\n", no_data);
+    printf(" %s 15. 走行回数出力\n", no_data);
 
     printf("\n【外部出力・保存】\n");
-    printf(" %s 21. CSVファイル出力\n",NO_DATA);
-    printf(" %s 22. 速度違反車の出力\n",NO_DATA);
+    printf(" %s 21. CSVファイル出力\n",no_data);
+    printf(" %s 22. 速度違反車の出力\n",no_data);
 
     printf("\n【0. 終了】\n");
 
@@ -121,7 +121,9 @@ void handle_args(int argc, char *argv[]){
     //LOG FILEを指定利用可能に変更
     for(int i = 1; i < argc; i++){
         if(strcmp(argv[i], "--file") == 0 && i + 1 < argc){
-            strcpy(log_file_path, argv[i+1]);
+            
+            snprintf(log_file_path, sizeof(log_file_path), "%s", argv[i+1]);
+
             printf(" -> [INFO]: 読み込みファイルを %s に変更しました\n", log_file_path);
         }
     }
