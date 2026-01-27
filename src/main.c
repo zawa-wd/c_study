@@ -7,7 +7,7 @@
 #include <stdlib.h> //20260122 mallocとfreeを使うため追加(atoi,exit)
 #include "fleet_system.h"
 
-//列挙型の定義                                                         
+//列挙型の定義
 enum MenuChoice {
     EXIT =          0,
     INPUT =         1,
@@ -25,17 +25,13 @@ enum MenuChoice {
  ****** メインルーチン *****
  *==========================*/
 int main(int argc, char *argv[]){
-    //コマンドライン引数処理
-    handle_args(argc, argv);
+    handle_args(argc, argv);//コマンドライン引数処理
 
     int choice;
 
     while(1){
-        //メニューを表示する前に件数を確認
-        int current_count = get_log_count();
-        
-        //メニュー表示
-        print_menu(current_count);
+        int current_count = get_log_count(); //メニュー前に件数確認
+        print_menu(current_count);  //メニュー表示
 
         if(scanf("%d", &choice) != 1){
             while(getchar() != '\n'); //数字以外の入力対策
@@ -43,7 +39,7 @@ int main(int argc, char *argv[]){
         }
        
         if(choice !=0 && choice != 1 && current_count == 0){
-            printf("\n -> [WARNING]:No data\n"); //データなしの入力対策
+            printf("\n    -> [WARNING]:No data\n"); //データなしの入力対策
             continue;
         }
 
@@ -69,11 +65,11 @@ int main(int argc, char *argv[]){
  *=====================*/
 
 /****************************
- * メインメニュー関数
+ * メインメニュー表示関数
  **[概要]
- *
+ *メインメニューの表示項目を作成
  **[引数]
- * int current_count :
+ * int current_count :LOGデータの登録件数
  **[戻り値]
  * void
  ****************************/
@@ -110,7 +106,7 @@ void print_menu(int current_count){
 /****************************
  * コマンドライン引数用関数
  **[概要]
- *コマンドライン引数を設定する
+ *コマンドライン引数を設定し、直接機能を使えるようにする
  **[引数]
  * void:
  **[戻り値]
@@ -124,7 +120,7 @@ void handle_args(int argc, char *argv[]){
             
             snprintf(log_file_path, sizeof(log_file_path), "%s", argv[i+1]);
 
-            printf(" -> [INFO]: 読み込みファイルを %s に変更しました\n", log_file_path);
+            printf("    -> [INFO]: 読み込みファイルを %s に変更しました\n", log_file_path);
         }
     }
 
@@ -142,8 +138,8 @@ void handle_args(int argc, char *argv[]){
     }
     else if(strcmp(argv[1], "--search") == 0){
         if(argc < 3){
-            printf("\n -> [ERROR]:IDを指定してください\n");
-            printf("            (例：--search 101)\n");
+            printf("\n    -> [ERROR]:IDを指定してください\n");
+            printf("                (例：--search 101)\n");
             exit(1);
         };
         
