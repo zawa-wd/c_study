@@ -2,12 +2,12 @@
 #include <string.h>
 #include "fleet_system.h" // 自分のルールブックを読み込む
 
-#define REPORT_FILE       "analysis_report.txt"
+#define REPORT_FILE       "data/analysis_report.txt"
 
 /* --- グローバル変数の実体 --- */
-char log_file_path[256] = "fleet_log.txt";
-char csv_file_path[256] = "fleet_log.csv";
-char speeding_csv_path[256] = "fleet_speeding_log.csv";
+char log_file_path[256] = "data/fleet_log.txt";
+char csv_file_path[256] = "data/fleet_log.csv";
+char speeding_csv_path[256] = "data/fleet_speeding_log.csv";
 
 /****************************
  * 走行判定関数

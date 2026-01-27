@@ -1,9 +1,9 @@
 # --- 設定エリア ---
 CC 		= gcc
-CFLAGS 	= -Wall -Wextra -g
+CFLAGS 	= -Wall -Wextra -g -Isrc
 TARGET 	= fleet_manager
 # .c ファイルを自動ですべてリストアップ
-SRCS 	= $(wildcard *.c)
+SRCS 	= $(wildcard src/*.c)
 # .c のリストを元に .o(オブジェクトファイル)のリストを作成
 OBJS 	= $(SRCS:.c=.o)
 
@@ -14,12 +14,12 @@ $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET)
 
 #2 .cファイルから.oファイルを作る共通ルール
-%.o: %.c
+src/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 #3 掃除用
 clean:
-	rm -f $(TARGET) $(OBJS)
+	rm -f $(TARGET) src/*.o
 
 #4 make cleanなど、名前がファイルと被っても動くようにする
 .PHONY: clean
