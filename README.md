@@ -39,12 +39,12 @@ make
 ├── README.md             # プロジェクト説明書（本ファイル）
 ├── fleet_manager         # 実行ファイル（ビルド後に生成）
 ├── src/                  # ソースコードディレクトリ
-│   ├── main.c            # UI・コマンドライン引数処理
-│   ├── fleet_logic.c     # データ処理・分析ロジック
-│   └── fleet_system.h    # 構造体定義・プロトタイプ宣言
+│   ├── main.c           # UI・コマンドライン引数処理
+│   ├── fleet_logic.c    # データ処理・分析ロジック
+│   └── fleet_system.h   # 構造体定義・プロトタイプ宣言
 ├── data/                 # データ保存ディレクトリ
-│   ├── fleet_log.txt     # 走行ログ（テキスト）
-│   ├── fleet_log.csv     # 全データ出力用CSV
+│   ├── fleet_log.txt    # 走行ログ（テキスト）
+│   ├── fleet_log.csv    # 全データ出力用CSV
 │   └── fleet_speeding_log.csv  # 速度超過データ専用CSV
 └── _archives/            # 過去のバックアップや古いコード
 ```
