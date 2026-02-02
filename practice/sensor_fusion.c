@@ -9,6 +9,7 @@ typedef struct{
     double buffer[BUFFER_SIZE];
     int index;
     int count;
+    int error_count;
 
 } Sensor;
 
@@ -34,13 +35,13 @@ double update_sensor(Sensor *s,double val){
 *メインルーチン 
 ***************/
 int main(){
-    Sensor wheel_speed = {{0}, 0, 0};   //ホイールの回転数で車速を確認している想定
-    Sensor gps_speed = {{0}, 0, 0};     //GPS情報を利用して車速を確認している想定
+    Sensor wheel_speed = {{0}, 0, 0, 0};   //ホイールの回転数で車速を確認している想定
+    Sensor gps_speed = {{0}, 0, 0, 0};     //GPS情報を利用して車速を確認している想定
     double w_in = 0, g_in = 0;
     double raw_diff = 0,avg_diff = 0,avg_w = 0,avg_g = 0; 
 
     printf("センサー入力を開始：\n");
-
+    wheel_speed.error_count = 0;
     while(1){
         printf("> ");
         if(scanf("%lf %lf", &w_in,&g_in) != 2) break; //2種類のセンサーデータを入力
@@ -53,9 +54,17 @@ int main(){
             avg_w = update_sensor(&wheel_speed, w_in);
             avg_g = update_sensor(&gps_speed, g_in);
             avg_diff = (avg_w > avg_g) ? (avg_w - avg_g) : (avg_g - avg_w);
+            wheel_speed.error_count = 0;
         }
         else{
             printf("\n[SKIP]\n\n");
+            wheel_speed.error_count++;
+        }
+        if(wheel_speed.error_count >= 5){
+            printf("\n[SYSTEM FAILURE]\n");
+            printf("5回[SKIP]したため、システムを終了します。\n");
+            break;
+
         }
 
         //構造体内の平均情報をそれぞれ出力
@@ -63,7 +72,6 @@ int main(){
 
         //構造体内の平均での差を確認する
         double diff = avg_w - avg_g;
-
         
         if(diff < 0) diff = -diff;
 
