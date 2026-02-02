@@ -1,6 +1,9 @@
 #include <stdio.h>
 
-#define BUFFER_SIZE 3
+#define MAX_DIFF 10.0           //平均値が左数値以上はErrorとする
+#define ERROR_THRESHOLD 5       //Errorが連続して左の数回あった場合、故障とみなす
+#define BUFFER_SIZE 3           //構造体のサイズ
+
 /**************
  * 構造体：buffer
  * センサーのデータ構造を一定にすることで処理を重複させないようにする
@@ -31,6 +34,29 @@ double update_sensor(Sensor *s,double val){
     return sum / s->count;
 }
 
+/*************
+*故障判定関数
+* 引　数:Sensor *s(判定したいセンサー)、double raw_diff(現在の差)
+* 戻り値:1で故障判定。0で正常
+**************/
+int check_sensor_status(Sensor *s, double raw_diff){
+
+    //MAX_DIFF以上の差がある場合は構造体への侵入を弾く
+    if(raw_diff <= MAX_DIFF){
+        s->error_count = 0;
+    }
+    else{
+        printf("\n[SKIP]\n");
+        s->error_count++;
+    }
+    if(s->error_count >= ERROR_THRESHOLD){
+        printf("\n[SYSTEM FAILURE]\n");
+        return 1;
+    }
+    return 0;
+
+}
+
 /**************
 *メインルーチン 
 ***************/
@@ -47,24 +73,20 @@ int main(){
         if(scanf("%lf %lf", &w_in,&g_in) != 2) break; //2種類のセンサーデータを入力
 
         raw_diff = (w_in > g_in) ? (w_in - g_in) : (g_in - w_in);//生データの速度差を計算
-        
-        //生データの時点で速度差が10以下の場合は使えるデータ化
-        //10以上の差がある場合は構造体への侵入を弾く
-        if(raw_diff <= 10){
+
+        if(check_sensor_status(&wheel_speed, raw_diff) == 1){
+            printf("[WARNING]：ホイールセンサー故障！\n");
+            break;
+        }    
+        if(check_sensor_status(&gps_speed, raw_diff) == 1){
+            printf("[WARNING]：GPSセンサー故障！\n");
+            break;
+        }
+        if(raw_diff <= MAX_DIFF){
+        //生データの時点で速度差がMAX_DIFF以下の場合は使えるデータ化
             avg_w = update_sensor(&wheel_speed, w_in);
             avg_g = update_sensor(&gps_speed, g_in);
             avg_diff = (avg_w > avg_g) ? (avg_w - avg_g) : (avg_g - avg_w);
-            wheel_speed.error_count = 0;
-        }
-        else{
-            printf("\n[SKIP]\n\n");
-            wheel_speed.error_count++;
-        }
-        if(wheel_speed.error_count >= 5){
-            printf("\n[SYSTEM FAILURE]\n");
-            printf("5回[SKIP]したため、システムを終了します。\n");
-            break;
-
         }
 
         //構造体内の平均情報をそれぞれ出力
@@ -76,7 +98,7 @@ int main(){
         if(diff < 0) diff = -diff;
 
         //RAWデータでの差分が10以上であった場合、WARNINGとして警告
-        if(raw_diff > 10.0){
+        if(raw_diff > MAX_DIFF){
             printf("[WARNING][raw_diff](%.2f)\n",raw_diff);
         }
 
@@ -87,8 +109,6 @@ int main(){
 
         //WARNING以外の場合、統合速度を出力
         else{
-            printf("[FUSION]:統合速度＝%.2f km/h\n",(avg_w + avg_g)/2.0);
-            printf("[NEW]\n");
             printf("[FUSION]:統合速度＝%.2f km/h\n",avg_diff);
             printf("[FUSION]:RAW統合＝%.2f km/h\n",raw_diff);
         }
