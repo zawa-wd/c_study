@@ -17,12 +17,41 @@ typedef struct{
 
 } Sensor;
 
+/**************
+ * 構造体：kalmanFilter
+ * カルマンフィルタで利用する構造体
+****************/
+typedef struct{
+    double speed;
+    double var;
+    double q;
+}KalmanFilter;
+
 /*--- プロトタイプ宣言 ---*/
+double update_kalman(KalmanFilter *kf, double observation, double sensor_var);
 double update_sensor(Sensor *s,double val);         //センサーのアップデート
 int check_sensor_status(Sensor *s,double raw_diff); //センサーの故障判断
 
-
 /*--- 関数 ---*/
+/*************
+*カルマンフィルタ
+* 　引数:double observation、sensor_var
+* 戻り値:
+**************/
+double update_kalman(KalmanFilter *kf, double observation, double sensor_var){
+
+    //step1 予測(共通)
+    double predict_speed = kf->speed;//前回の速度をベースにする
+    double predict_var = kf->var + kf->q;//時間が立つほど、予測は少しずつ不正確になる。(誤差を増やす)
+    //step2 更新
+    //重み付けを予測とセンサーの間でおこなう
+    double k_gain = predict_var / (predict_var + sensor_var);//カルマンゲイン
+    kf->speed = predict_speed + k_gain * (observation - predict_speed);
+    //次回のための結果を保存
+    kf->var = (1.0 - k_gain) * predict_var;//情報を得たので誤差は小さくなる
+
+    return kf->speed;
+}
 
 /*************
 *センサーのアップデートをおこなう関数(リングバッファ)
@@ -72,15 +101,17 @@ int main(){
     Sensor wheel_speed = {{0}, 0, 0, 0};   //ホイールの回転数で車速を確認している想定
     Sensor gps_speed = {{0}, 0, 0, 0};     //GPS情報を利用して車速を確認している想定
     Sensor accel_speed = {{0}, 0, 0, 0};    //加速度から計算した速度を想定
+    KalmanFilter kf = {0.0, 1.0, 0.2};    //カルマンフィルタの初期化
     double w_in = 0, g_in = 0, a_in = 0;    //入力した値
     double raw_diff = 0,avg_diff = 0,avg_w = 0,avg_g = 0,avg_a = 0;//平均値
     double fusion_speed =0; //合計したスピード
     double w_weight = 0.4; //WHEELの信頼度
     double g_weight = 0.4; //GPSの信頼度
     double a_weight = 0.2; //ACCELの信頼度
-    double w_var = 1.0;  //WHEELは正確(誤差１)
-    double g_var = 25.0; //GPSはフラフラ(誤差25)
-    double a_var = 100.0; //加速度は結構ガタガタ(ドリフトしやすい想定)
+    double w_var = 0.1;//1.0;  //WHEELは正確(誤差１)
+    double g_var = 0.5;//25.0; //GPSはフラフラ(誤差25)
+    double a_var = 1.0;//100.0; //加速度は結構ガタガタ(ドリフトしやすい想定)
+
 
     printf("センサー入力を開始：\n");
 
@@ -91,46 +122,41 @@ int main(){
         double diff_wg = (w_in > g_in) ? (w_in - g_in) : (g_in - w_in);
         double diff_ga = (g_in > a_in) ? (g_in - a_in) : (a_in - g_in);
         double diff_aw = (a_in > w_in) ? (a_in - w_in) : (w_in - a_in);
-
-        /* if分で比重分岐
-        //速度に応じて重みの比率を変更
-        if(w_in > 80.0){
-            w_weight = 0.2;
-            g_weight = 0.6; //GPSに比重を置く
-        }
-        else{
-            w_weight = 0.7; //WHEELに比重を置く
-            g_weight = 0.1;
-        }
-        */
-        
+        double observation = 0;
+        double current_sensor_var = 0;        
 
         if(diff_wg <= MAX_DIFF){
-            /* カルマンフィルタ()WHEEL/GPS Ver */
+            //今のセンサー同士の重み付けを計算
             w_weight = g_var / (w_var + g_var);
             g_weight = w_var / (w_var + g_var);
+            //まずはセンサー同士で「今の正解」を出す(実測値を出す)
+            observation = (w_in * w_weight + g_in * g_weight) / (w_weight + g_weight);
+            current_sensor_var = g_var;//代表してGPSの誤差を使用
+
             //WHEELとGPSが近いならその平均を信じる
-            fusion_speed = (w_in * w_weight + g_in * g_weight)/(w_weight + g_weight); //判定ロジック
-            // Accelだけが仲間外れなので、aにだけ「ズレ(diff_a)」を教えてあげる
-            double diff_a = (fusion_speed > a_in) ? (fusion_speed - a_in) : (a_in - fusion_speed);
+            //Accelだけが仲間外れなので、aにだけ「ズレ(diff_a)」を教えてあげる
+            double diff_a = (observation > a_in) ? (observation - a_in) : (a_in - observation);
     
             check_sensor_status(&wheel_speed, 0);      // 潔白
             check_sensor_status(&gps_speed, 0);        // 潔白
-            // 以下疑いあり
+            //以下疑いあり
             //diff_aのチェック結果より1が返ってきていたら故障判定
             if(check_sensor_status(&accel_speed, diff_a) == 1){
                 printf("\n[ERROR]：ACCELセンサー故障！\n");
                 break;
             }
         }
+        
         else if(diff_ga <= MAX_DIFF){
             /* カルマンフィルタ(GPS/ACCEL Ver) */
             g_weight = a_var / (g_var + a_var);
             a_weight = g_var / (g_var + a_var);
             //GPSとaccelが近いならその平均を信じる
-            fusion_speed = (g_in * g_weight + a_in * a_weight) / (g_weight + a_weight); //判定ロジック
-            // Wheelだけが仲間外れなので、wにだけ「ズレ(diff_w)」を教えてあげる
-            double diff_w = (fusion_speed > w_in) ? (fusion_speed - w_in) : (w_in - fusion_speed);
+            observation = (g_in * g_weight + a_in * a_weight) / (g_weight + a_weight); //判定ロジック
+            current_sensor_var = a_var;//代表してACCELの誤差を使用
+
+            //Wheelだけが仲間外れなので、wにだけ「ズレ(diff_w)」を教えてあげる
+            double diff_w = (observation > w_in) ? (observation - w_in) : (w_in - observation);
     
             check_sensor_status(&gps_speed, 0);        // 潔白
             check_sensor_status(&accel_speed, 0); // 潔白
@@ -146,9 +172,10 @@ int main(){
             a_weight = w_var / (a_var + w_var);
             w_weight = a_var / (a_var + w_var);
             //accelとwheelが近いならその平均を信じる
-            fusion_speed = (a_in * a_weight + w_in * w_weight) / (a_weight + w_weight); //判定ロジック
+            observation = (a_in * a_weight + w_in * w_weight) / (a_weight + w_weight); //判定ロジック
+            current_sensor_var = w_var;//代表してWHEELの誤差を使用
             // GPSだけが仲間外れなので、gにだけ「ズレ(diff_g)」を教えてあげる
-            double diff_g = (fusion_speed > g_in) ? (fusion_speed - g_in) : (g_in - fusion_speed);
+            double diff_g = (observation > g_in) ? (observation - g_in) : (g_in - observation);
     
             check_sensor_status(&wheel_speed, 0);      // 潔白
             check_sensor_status(&accel_speed, 0); // 潔白
@@ -164,8 +191,10 @@ int main(){
             printf("\n[ERROR]:正しい値が不明です。終了します\n");
             break;
         }
+        
+        fusion_speed = update_kalman(&kf, observation, current_sensor_var);//カルマンフィルタに掛ける
 
-        //上記で問題ないことが判断できたため、アップデートしていく
+        //check_sensor_statusで問題ないことが判断できたため、アップデートしていく
         avg_w = update_sensor(&wheel_speed, w_in);
         avg_g = update_sensor(&gps_speed, g_in);
         avg_a = update_sensor(&accel_speed, a_in);
