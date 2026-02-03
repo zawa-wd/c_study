@@ -78,6 +78,9 @@ int main(){
     double w_weight = 0.4; //WHEELの信頼度
     double g_weight = 0.4; //GPSの信頼度
     double a_weight = 0.2; //ACCELの信頼度
+    double w_var = 1.0;  //WHEELは正確(誤差１)
+    double g_var = 25.0; //GPSはフラフラ(誤差25)
+    double a_var = 100.0; //加速度は結構ガタガタ(ドリフトしやすい想定)
 
     printf("センサー入力を開始：\n");
 
@@ -89,19 +92,25 @@ int main(){
         double diff_ga = (g_in > a_in) ? (g_in - a_in) : (a_in - g_in);
         double diff_aw = (a_in > w_in) ? (a_in - w_in) : (w_in - a_in);
 
+        /* if分で比重分岐
         //速度に応じて重みの比率を変更
         if(w_in > 80.0){
             w_weight = 0.2;
-            g_weight = 0.6;
+            g_weight = 0.6; //GPSに比重を置く
         }
         else{
-            w_weight = 0.7;
+            w_weight = 0.7; //WHEELに比重を置く
             g_weight = 0.1;
         }
+        */
+        
 
         if(diff_wg <= MAX_DIFF){
+            /* カルマンフィルタ()WHEEL/GPS Ver */
+            w_weight = g_var / (w_var + g_var);
+            g_weight = w_var / (w_var + g_var);
             //WHEELとGPSが近いならその平均を信じる
-            fusion_speed = w_in * w_weight + g_in * g_weight;
+            fusion_speed = (w_in * w_weight + g_in * g_weight)/(w_weight + g_weight); //判定ロジック
             // Accelだけが仲間外れなので、aにだけ「ズレ(diff_a)」を教えてあげる
             double diff_a = (fusion_speed > a_in) ? (fusion_speed - a_in) : (a_in - fusion_speed);
     
@@ -115,8 +124,11 @@ int main(){
             }
         }
         else if(diff_ga <= MAX_DIFF){
+            /* カルマンフィルタ(GPS/ACCEL Ver) */
+            g_weight = a_var / (g_var + a_var);
+            a_weight = g_var / (g_var + a_var);
             //GPSとaccelが近いならその平均を信じる
-            fusion_speed = (g_in * g_weight + a_in * a_weight) /2.0;
+            fusion_speed = (g_in * g_weight + a_in * a_weight) / (g_weight + a_weight); //判定ロジック
             // Wheelだけが仲間外れなので、wにだけ「ズレ(diff_w)」を教えてあげる
             double diff_w = (fusion_speed > w_in) ? (fusion_speed - w_in) : (w_in - fusion_speed);
     
@@ -130,8 +142,11 @@ int main(){
             }
         }
         else if(diff_aw <= MAX_DIFF){
+            /* カルマンフィルタ(ACEEL/WHEEL ver) */
+            a_weight = w_var / (a_var + w_var);
+            w_weight = a_var / (a_var + w_var);
             //accelとwheelが近いならその平均を信じる
-            fusion_speed = (a_in * a_weight + w_in * w_weight) /2.0;
+            fusion_speed = (a_in * a_weight + w_in * w_weight) / (a_weight + w_weight); //判定ロジック
             // GPSだけが仲間外れなので、gにだけ「ズレ(diff_g)」を教えてあげる
             double diff_g = (fusion_speed > g_in) ? (fusion_speed - g_in) : (g_in - fusion_speed);
     
