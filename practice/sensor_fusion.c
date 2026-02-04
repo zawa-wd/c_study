@@ -1,12 +1,15 @@
 #include <stdio.h>
 
 /*--- 定数設定 ---*/
+//補足：_varは分散…分散は数値が大きいほど信頼できないというイメージ
 #define MAX_DIFF 10.0        //平均値が左数値以上は正しくない可能性があると考え、他のセンサーデータを利用する
 #define ERROR_THRESHOLD 5    //Errorが連続して左の数回あった場合、故障とみなす
 #define BUFFER_SIZE 3        //構造体のサイズ
 #define W_VAR 0.1            //WHEELの分散は正確(誤差１)
 #define G_VAR 0.5            //GPSの分散はフラフラ(誤差25)
 #define A_VAR 1.0            //加速度の分散は結構ガタガタ(ドリフトしやすい想定)
+#define INITIAL_VAR 1.0     //カルマンフィルタの初期値　最初の自身のなさ
+#define PROCESS_NOISE 5.0//0.2   //カルマンフィルタの初期値　予測がどれくらいズレているか
 
 /**************
  * 構造体：buffer
@@ -102,7 +105,7 @@ int main(){
     Sensor wheel_speed = {{0}, 0, 0, 0}; //ホイールの回転数で車速を確認している想定
     Sensor gps_speed =   {{0}, 0, 0, 0}; //GPS情報を利用して車速を確認している想定
     Sensor accel_speed = {{0}, 0, 0, 0}; //加速度から計算した速度を想定
-    KalmanFilter kf =   {0.0, 1.0, 0.2}; //カルマンフィルタの初期化
+    KalmanFilter kf =   {0.0, INITIAL_VAR, PROCESS_NOISE}; //カルマンフィルタの初期化
     double w_in = 0, g_in = 0, a_in = 0;             //入力値(センサーからの値)
     double avg_w = 0,avg_g = 0,avg_a = 0;            //平均値
     double w_weight = 0, g_weight = 0, a_weight = 0; //信頼度
@@ -142,7 +145,8 @@ int main(){
             //diff_aのチェック結果より1が返ってきていたら故障判定
             if(check_sensor_status(&accel_speed, diff_a) == 1){
                 printf("\n ->[ERROR]：ACCELセンサー故障！\n");
-                break;
+                current_sensor_var = G_VAR;//正常なGPSの分散をそのままつかう
+                //break;//breakするようにしていたが、正常な値を入れて回すように改造
             }
         }
         
@@ -166,7 +170,8 @@ int main(){
             //diff_wのチェック結果より1が返ってきていたら故障判定
             if(check_sensor_status(&wheel_speed, diff_w) == 1){
                 printf("\n ->[ERROR]：WHEELセンサー故障！\n");
-                break;
+                current_sensor_var = A_VAR;
+                //break;
             }
         }
 
@@ -189,7 +194,8 @@ int main(){
             //diff_gのチェック結果より1が返ってきていたら故障判定
             if(check_sensor_status(&gps_speed, diff_g) == 1){
                 printf("\n ->[ERROR]：GPSセンサー故障！\n");
-                break;
+                current_sensor_var = W_VAR;
+                //break;
             }
         }
 
