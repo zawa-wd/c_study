@@ -5,11 +5,11 @@
 #define MAX_DIFF 10.0        //平均値が左数値以上は正しくない可能性があると考え、他のセンサーデータを利用する
 #define ERROR_THRESHOLD 5    //Errorが連続して左の数回あった場合、故障とみなす
 #define BUFFER_SIZE 3        //構造体のサイズ
-#define W_VAR 0.1            //WHEELの分散は正確(誤差１)
+#define W_VAR 0.01            //WHEELの分散は正確(誤差１)
 #define G_VAR 0.5            //GPSの分散はフラフラ(誤差25)
 #define A_VAR 1.0            //加速度の分散は結構ガタガタ(ドリフトしやすい想定)
 #define INITIAL_VAR 1.0     //カルマンフィルタの初期値　最初の自身のなさ
-#define PROCESS_NOISE 0.2   //カルマンフィルタの初期値　予測がどれくらいズレているか
+#define PROCESS_NOISE 10.0   //カルマンフィルタの初期値　予測がどれくらいズレているか
 #define SIMULATOR_VIRTUAL_SPEED 0   //[SIMULATOR]初速度
 #define SIMULATOR_W_NOISE 0.2       //[SIMULATOR]WHEELのノイズ
 #define SIMULATOR_G_NOISE -0.5      //[SIMULATOR]GPSのノイズ
@@ -188,7 +188,7 @@ int main(){
     double fusion_speed =0;     //カルマンフィルタを考慮したスピード
 
     printf("センサー入力を開始：\n");
-    /* ＝＝＝ SIMULATOR ＝＝＝ */
+    /* ＝＝＝ SIMULATOR　START ＝＝＝ */
     printf("＝＝＝ SIMULATOR START ＝＝＝\n");
     double virtual_speed = SIMULATOR_VIRTUAL_SPEED;//シミュレーション時の初速度
 
@@ -197,20 +197,25 @@ int main(){
 
         w_in = simulate_sensor(virtual_speed, SIMULATOR_W_NOISE);//ノイズを加えたWHEELの入力値
         a_in = simulate_sensor(virtual_speed, SIMULATOR_A_NOISE);//ノイズを加えたACCELの入力値
+//        g_in = simulate_sensor(virtual_speed, SIMULATOR_G_NOISE);//ノイズを加えたGPSの入力値
 
         //【シナリオ】20回目からGPSが故障して150km/hに固定される
+        if(i >= 36){
+            g_in = 150;
+            w_in = 150;
+        }
         if(i >= 20){
             g_in = 150;
         }
         else{
             g_in = simulate_sensor(virtual_speed, SIMULATOR_G_NOISE);//ノイズを加えたGPSの入力値
         }
-    /* ＝＝＝ SIMULATOR ＝＝＝ */
+    /* ＝＝＝ SIMULATOR END ＝＝＝ */
     //シミュレーターは以下の4行、｝、wile(1)、print、ifだけコメントアウトして使用
-//    }
-//    while(1){
-//        printf("\n入力：[WHEEL],[GPS],[ACCEL]>>\n");
-//        if(scanf("%lf %lf %lf", &w_in, &g_in, &a_in) != 3) break; //3種類のセンサーデータを入力
+    //    }
+    //    while(1){
+    //        printf("\n入力：[WHEEL],[GPS],[ACCEL]>>\n");
+    //        if(scanf("%lf %lf %lf", &w_in, &g_in, &a_in) != 3) break; //3種類のセンサーデータを入力
 
         //各センサーのズレを計算(多数決の準備)
         double diff_wg = (w_in > g_in) ? (w_in - g_in) : (g_in - w_in);
@@ -226,6 +231,12 @@ int main(){
         int score_aw = accel_speed.error_count + wheel_speed.error_count;
 
         int mode = select_best_pair(diff_wg, diff_ga, diff_aw, score_wg, score_ga, score_aw);
+
+        if(mode == 0 && (w_in > kf.speed + 20.0 || w_in < kf.speed -20.0)) mode = -1;
+        if(mode == 1 && (g_in > kf.speed + 20.0 || g_in < kf.speed -20.0)) mode = -1;
+        if(mode == 2 && (a_in > kf.speed + 20.0 || a_in < kf.speed -20.0)) mode = -1;
+        
+
 
         //WHEELとGPSのセンサーペアを採用する場合
         if(mode == 0){
@@ -243,8 +254,20 @@ int main(){
 
         else{
             //全ての値(GPW,WHEEL,ACCLEの値)がバラバラ
-            printf("\n ->[ERROR]:正しい値が不明です。終了します\n");
-            break;
+            printf("\n ->[EMERGENCY]:多数決不可能！前回の速度から妥当性を判断します\n");
+            double d_w = (kf.speed > w_in) ? (kf.speed - w_in) : (w_in - kf.speed);
+            double d_g = (kf.speed > g_in) ? (kf.speed - g_in) : (g_in - kf.speed);
+            double d_a = (kf.speed > a_in) ? (kf.speed - a_in) : (a_in - kf.speed);
+            if(d_a < d_w && d_a < d_g && d_a < MAX_DIFF * 2){
+                observation = a_in;
+                current_sensor_var = A_VAR * 10.0;
+                printf(" ->[RESCUE]:ACCELのみを信頼して継続\n");
+            }
+            else{
+                observation = kf.speed;
+                current_sensor_var = 100.0;
+                printf(" ->[RESCUE]:全センサーを拒否。予測のみで維持\n");
+            }
         }
         
         fusion_speed = update_kalman(&kf, observation, current_sensor_var);//カルマンフィルタに掛ける
@@ -256,7 +279,11 @@ int main(){
 
         //BUFFER内の平均情報をそれぞれ出力
         printf("[Average]    WHEEL:%.2f[km/h], GPS: %.2f[km/h], ACCEL: %.2f[km/h]\n", avg_w, avg_g, avg_a);
-        printf("[FUSION] 統合速度：%.2f[km/h]\n", fusion_speed);
+//        printf("[FUSION] 統合速度：%.2f[km/h]\n", fusion_speed);
+
+        double error = fusion_speed - virtual_speed;
+        double abs_error = (error < 0) ? -error : error;
+        printf("[FUSION] 推定速度：%.2f(誤差：%.3f)[km/h]\n", fusion_speed, abs_error);
     }
     return 0;
 }
