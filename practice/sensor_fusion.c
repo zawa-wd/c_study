@@ -9,12 +9,12 @@
 #define G_VAR 0.5            //GPSの分散はフラフラ(誤差25)
 #define A_VAR 1.0            //加速度の分散は結構ガタガタ(ドリフトしやすい想定)
 #define INITIAL_VAR 1.0     //カルマンフィルタの初期値　最初の自身のなさ
-#define PROCESS_NOISE 5.0//0.2   //カルマンフィルタの初期値　予測がどれくらいズレているか
+#define PROCESS_NOISE 0.2   //カルマンフィルタの初期値　予測がどれくらいズレているか
 
-/**************
+/**************************************************
  * 構造体：buffer
  * センサーのデータ構造を一定にすることで処理を重複させないようにする
-****************/
+**************************************************/
 typedef struct{
     double buffer[BUFFER_SIZE];
     int index;
@@ -23,10 +23,10 @@ typedef struct{
 
 } Sensor;
 
-/**************
+/******************************
  * 構造体：kalmanFilter
  * カルマンフィルタで利用する構造体
-****************/
+******************************/
 typedef struct{
     double speed;   //推定速度
     double var;     //推定誤差
@@ -37,32 +37,63 @@ typedef struct{
 double update_kalman(KalmanFilter *kf, double observation, double sensor_var); //カルマンフィルタ
 double update_sensor(Sensor *s,double val);         //センサーのアップデート
 int check_sensor_status(Sensor *s,double raw_diff); //センサーの故障判断
+int select_best_pair(double d_wg, double d_ga, double d_aw, int s_wg, int s_ga, int s_aw); //センサーの正しいらしいベアを判断
+void process_sensor_fusion(double in1, double in2, double in3, double var1, double var2, Sensor *s1, Sensor *s2, Sensor *s3, double *obs, double *cur_var); //センサーステータス更新用関数
 
 /*--- 関数 ---*/
-/*************
+/************************************************************
+ *選択されたペアに基づいて、実測値の計算と各センサーのステータス更新をおこなう関数
+ *引　数：in1,2,3:入力された値、var1,2:選択されたペアのそれぞれの分散、s1,2,3:センサーの値
+　　　　 [書き込み用]obs:統合された実測値、cur_var:選択されたペアの信頼性（分散）
+ *返り値：void
+ ************************************************************/
+void process_sensor_fusion(double in1, double in2, double in3, double var1, double var2, Sensor *s1, Sensor *s2, Sensor *s3, double *obs, double *cur_var){
+
+    //センサー同士の分散(誤差)に基づいて、どちらをより信じるか重みを計算
+    double w1 = var2 / (var1 + var2);
+    double w2 = var1 / (var1 + var2);
+    
+    *obs = (in1 * w1 + in2 * w2) / (w1 + w2); //センサーのペアを混ぜ合わせて一つのもっともらしい実測値をつくる
+    *cur_var = var2;    //カルマンフィルタに伝える今回の実測値の誤差
+
+    //正常ペアはエラーカウントをリセット
+    check_sensor_status(s1,0);
+    check_sensor_status(s2,0);
+
+    //仲間はずれのS3のズレを計算してチェック
+    double diff3 = (*obs > in3) ? (*obs - in3) : (in3 - *obs);
+
+    //以下ズレの疑いがあるためチェック
+    //diff3のチェック結果より１が返ってきていた場合、故障判定
+    if(check_sensor_status(s3, diff3)==1){
+        printf("\n ->[ERROR]:センサーの故障を検知\n");
+    }
+}
+
+/****************************************
 *カルマンフィルタ
 * 引　数:double observation、sensor_var
 * 戻り値:kf-speed 推定速度
-**************/
+****************************************/
 double update_kalman(KalmanFilter *kf, double observation, double sensor_var){
     //step1 予測
-    double predict_speed = kf->speed;//速度をベースにする
-    double predict_var = kf->var + kf->q;//時間が立つほど、予測は少しずつ不正確になる。(誤差を増やす)
+    double predict_speed = kf->speed;       //速度をベースにする
+    double predict_var = kf->var + kf->q;   //時間が立つほど、予測は少しずつ不正確になる。(誤差を増やす)
 
     //step2 更新
     //重み付けを予測とセンサーの間でおこなう
     double k_gain = predict_var / (predict_var + sensor_var);   //カルマンゲイン
     kf->speed = predict_speed + k_gain * (observation - predict_speed);
-    kf->var = (1.0 - k_gain) * predict_var;//情報を得たので誤差は小さくなる
+    kf->var = (1.0 - k_gain) * predict_var; //情報を得たので誤差は小さくなる
 
     return kf->speed;
 }
 
-/*************
+/****************************************
 * センサーのアップデートをおこなう関数(リングバッファ)
 * 引　数:double val(センサー情報)
 * 戻り値:バッファ内の平均値
-**************/
+****************************************/
 double update_sensor(Sensor *s,double val){
     s->buffer[s->index] = val;  //index番号に新しい値を入れる
     s->index = (s->index + 1) % BUFFER_SIZE;    //次に書き込む場所をずらす3%3 になると余りが0になり戻る
@@ -76,12 +107,12 @@ double update_sensor(Sensor *s,double val){
     return sum / s->count;//カウントした数で割って、平均値を出す
 }
 
-/*************
+/**************************************************
 * 故障判定関数
 *   MAX_DIFF以上の差がある場合は構造体への侵入を弾く
 * 引　数:Sensor *s(判定したいセンサー)、double raw_diff(現在の差)
 * 戻り値:1で故障判定。0で正常
-**************/
+**************************************************/
 int check_sensor_status(Sensor *s, double raw_diff){
     if(raw_diff <= MAX_DIFF){
         s->error_count = 0;
@@ -97,10 +128,40 @@ int check_sensor_status(Sensor *s, double raw_diff){
     return 0;
 
 }
+//WGチェック
 
-/**************
+/************************************************************
+*ベストなセンサーペアを選択する関数
+*引　数：d_wg,ga,aw:それぞれのズレ計算結果、s_wg,ga,aw:ペアごとのエラー総数
+*戻り値：0(W&G),1(G&A)2(A&W),-1(全滅)
+************************************************************/
+int select_best_pair(double d_wg,double d_ga, double d_aw, int s_wg, int s_ga, int s_aw){
+    //まずは差が許容範囲のペアを絞る
+    int best_mode = -1;
+    int main_score = 999;
+
+    //W&Gチェック
+    if(d_wg <= MAX_DIFF && s_wg < main_score){
+        main_score = s_wg;
+        best_mode = 0;
+
+    }
+    //G&Aチェック
+    if(d_ga <= MAX_DIFF && s_ga < main_score){
+        main_score = s_ga;
+        best_mode = 1;
+    }
+    //A&Wチェック
+    if(d_aw <= MAX_DIFF && s_aw < main_score){
+        main_score = s_aw;
+        best_mode = 2;
+    }
+    return best_mode;
+}
+
+/**********
 *メインルーチン 
-***************/
+**********/
 int main(){
     Sensor wheel_speed = {{0}, 0, 0, 0}; //ホイールの回転数で車速を確認している想定
     Sensor gps_speed =   {{0}, 0, 0, 0}; //GPS情報を利用して車速を確認している想定
@@ -125,78 +186,25 @@ int main(){
         double observation = 0;         //統合された「今この瞬間の実測値」
         double current_sensor_var = 0;  //採用されたセンサーペアの「信頼性(分散)」
 
+        //ペアごとのエラー合計を計算
+        int score_wg = wheel_speed.error_count + gps_speed.error_count;
+        int score_ga = gps_speed.error_count + accel_speed.error_count;
+        int score_aw = accel_speed.error_count + wheel_speed.error_count;
+
+        int mode = select_best_pair(diff_wg, diff_ga, diff_aw, score_wg, score_ga, score_aw);
+
         //WHEELとGPSのセンサーペアを採用する場合
-        if(diff_wg <= MAX_DIFF){
-            //センサー同士の分散(誤差)に基づいて、どちらをより信じるか重みを計算
-            w_weight = G_VAR / (W_VAR + G_VAR);
-            g_weight = W_VAR / (W_VAR + G_VAR);
-            
-            observation = (w_in * w_weight + g_in * g_weight) / (w_weight + g_weight);//センサーのペアを混ぜ合わせて一つのもっともらしい実測値をつくる
-            current_sensor_var = G_VAR;//カルマンフィルタに伝える今回の実測値の誤差
-
-            //Accelだけが仲間外れなので、aにだけ「ズレ(diff_a)」を教えてあげる
-            double diff_a = (observation > a_in) ? (observation - a_in) : (a_in - observation);
-
-            //正常ペアはエラーカウントをリセット
-            check_sensor_status(&wheel_speed, 0);
-            check_sensor_status(&gps_speed, 0);
-
-            //以下疑いあるためチェック
-            //diff_aのチェック結果より1が返ってきていたら故障判定
-            if(check_sensor_status(&accel_speed, diff_a) == 1){
-                printf("\n ->[ERROR]：ACCELセンサー故障！\n");
-                current_sensor_var = G_VAR;//正常なGPSの分散をそのままつかう
-                //break;//breakするようにしていたが、正常な値を入れて回すように改造
-            }
+        if(mode == 0){
+            process_sensor_fusion(w_in, g_in, a_in, W_VAR, G_VAR, &wheel_speed, &gps_speed, &accel_speed, &observation, &current_sensor_var);
         }
         
         //GPSとACCELのセンサーペアを採用する場合
-        else if(diff_ga <= MAX_DIFF){
-            //センサー同士の分散(誤差)に基づいて、どちらをより信じるか重みを計算
-            g_weight = A_VAR / (G_VAR + A_VAR);
-            a_weight = G_VAR / (G_VAR + A_VAR);
-            
-            observation = (g_in * g_weight + a_in * a_weight) / (g_weight + a_weight); //センサーのペアを混ぜ合わせて一つのもっともらしい実測値をつくる
-            current_sensor_var = A_VAR;//カルマンフィルタに伝える今回の誤差
-
-            //Wheelだけが仲間外れなので、wにだけ「ズレ(diff_w)」を教えてあげる
-            double diff_w = (observation > w_in) ? (observation - w_in) : (w_in - observation);
-    
-            //正常ペアのエラーカウントをリセット
-            check_sensor_status(&gps_speed, 0);
-            check_sensor_status(&accel_speed, 0);
-
-            //以下疑いありのためチェック
-            //diff_wのチェック結果より1が返ってきていたら故障判定
-            if(check_sensor_status(&wheel_speed, diff_w) == 1){
-                printf("\n ->[ERROR]：WHEELセンサー故障！\n");
-                current_sensor_var = A_VAR;
-                //break;
-            }
+        else if(mode == 1){
+            process_sensor_fusion(g_in, a_in, w_in, G_VAR, A_VAR, &gps_speed, &accel_speed, &wheel_speed, &observation, &current_sensor_var);
         }
-
-        else if(diff_aw <= MAX_DIFF){
-            //センサー同士の分散(誤差)に基づいて、どちらをより信じるか重みを計算
-            a_weight = W_VAR / (A_VAR + W_VAR);
-            w_weight = A_VAR / (A_VAR + W_VAR);
-            
-            observation = (a_in * a_weight + w_in * w_weight) / (a_weight + w_weight); //センサーのペアを混ぜ合わせて一つのもっともらしい実測値をつくる
-            current_sensor_var = W_VAR;//カルマンフィルタに伝える今回の誤差
-
-            // GPSだけが仲間外れなので、gにだけ「ズレ(diff_g)」を教えてあげる
-            double diff_g = (observation > g_in) ? (observation - g_in) : (g_in - observation);
-
-            //正常ペアのエラーカウントをリセット
-            check_sensor_status(&wheel_speed, 0);
-            check_sensor_status(&accel_speed, 0);
- 
-            // 以下疑いありのためチェック
-            //diff_gのチェック結果より1が返ってきていたら故障判定
-            if(check_sensor_status(&gps_speed, diff_g) == 1){
-                printf("\n ->[ERROR]：GPSセンサー故障！\n");
-                current_sensor_var = W_VAR;
-                //break;
-            }
+        //ACCELとWHEELのセンサーペアを採用する場合
+        else if(mode == 2){
+            process_sensor_fusion(a_in, w_in, g_in, A_VAR, W_VAR, &accel_speed, &wheel_speed, &gps_speed, &observation, &current_sensor_var);
         }
 
         else{
