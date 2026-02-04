@@ -10,6 +10,10 @@
 #define A_VAR 1.0            //加速度の分散は結構ガタガタ(ドリフトしやすい想定)
 #define INITIAL_VAR 1.0     //カルマンフィルタの初期値　最初の自身のなさ
 #define PROCESS_NOISE 0.2   //カルマンフィルタの初期値　予測がどれくらいズレているか
+#define SIMULATOR_VIRTUAL_SPEED 0   //[SIMULATOR]初速度
+#define SIMULATOR_W_NOISE 0.2       //[SIMULATOR]WHEELのノイズ
+#define SIMULATOR_G_NOISE -0.5      //[SIMULATOR]GPSのノイズ
+#define SIMULATOR_A_NOISE 1.0       //[SIMULATOR]ACCELのノイズ
 
 /**************************************************
  * 構造体：buffer
@@ -39,6 +43,7 @@ double update_sensor(Sensor *s,double val);         //センサーのアップ�
 int check_sensor_status(Sensor *s,double raw_diff); //センサーの故障判断
 int select_best_pair(double d_wg, double d_ga, double d_aw, int s_wg, int s_ga, int s_aw); //センサーの正しいらしいベアを判断
 void process_sensor_fusion(double in1, double in2, double in3, double var1, double var2, Sensor *s1, Sensor *s2, Sensor *s3, double *obs, double *cur_var); //センサーステータス更新用関数
+double simulate_sensor(double target_speed, double noise_level);//センサーの値をシミュレート生成する関数
 
 /*--- 関数 ---*/
 /************************************************************
@@ -159,6 +164,16 @@ int select_best_pair(double d_wg,double d_ga, double d_aw, int s_wg, int s_ga, i
     return best_mode;
 }
 
+/******************************
+*センサーの値をシミュレーション生成する関数
+*引　数：target_speed:本来あるべき車速、
+　　　　 noise_level:センサーのガタツキ具合(本来乱数を使うが今回は固定値)
+*戻り値：
+******************************/
+double simulate_sensor(double target_speed, double noise_level){
+    return target_speed + noise_level;
+}
+
 /**********
 *メインルーチン 
 **********/
@@ -172,11 +187,30 @@ int main(){
     double w_weight = 0, g_weight = 0, a_weight = 0; //信頼度
     double fusion_speed =0;     //カルマンフィルタを考慮したスピード
 
-    printf("センサー入力を開始：");
+    printf("センサー入力を開始：\n");
+    /* ＝＝＝ SIMULATOR ＝＝＝ */
+    printf("＝＝＝ SIMULATOR START ＝＝＝\n");
+    double virtual_speed = SIMULATOR_VIRTUAL_SPEED;//シミュレーション時の初速度
 
-    while(1){
-        printf("\n入力：[WHEEL],[GPS],[ACCEL]>>\n");
-        if(scanf("%lf %lf %lf", &w_in, &g_in, &a_in) != 3) break; //3種類のセンサーデータを入力
+    for(int i = 0; i < 50; i++){
+        virtual_speed += 1.0;//マイステップ1km/hずつ加速
+
+        w_in = simulate_sensor(virtual_speed, SIMULATOR_W_NOISE);//ノイズを加えたWHEELの入力値
+        a_in = simulate_sensor(virtual_speed, SIMULATOR_A_NOISE);//ノイズを加えたACCELの入力値
+
+        //【シナリオ】20回目からGPSが故障して150km/hに固定される
+        if(i >= 20){
+            g_in = 150;
+        }
+        else{
+            g_in = simulate_sensor(virtual_speed, SIMULATOR_G_NOISE);//ノイズを加えたGPSの入力値
+        }
+    /* ＝＝＝ SIMULATOR ＝＝＝ */
+    //シミュレーターは以下の4行、｝、wile(1)、print、ifだけコメントアウトして使用
+//    }
+//    while(1){
+//        printf("\n入力：[WHEEL],[GPS],[ACCEL]>>\n");
+//        if(scanf("%lf %lf %lf", &w_in, &g_in, &a_in) != 3) break; //3種類のセンサーデータを入力
 
         //各センサーのズレを計算(多数決の準備)
         double diff_wg = (w_in > g_in) ? (w_in - g_in) : (g_in - w_in);
