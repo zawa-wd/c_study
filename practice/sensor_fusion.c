@@ -149,7 +149,6 @@ int select_best_pair(double d_wg,double d_ga, double d_aw, int s_wg, int s_ga, i
     if(d_wg <= MAX_DIFF && s_wg < main_score){
         main_score = s_wg;
         best_mode = 0;
-
     }
     //G&Aチェック
     if(d_ga <= MAX_DIFF && s_ga < main_score){
@@ -232,11 +231,10 @@ int main(){
 
         int mode = select_best_pair(diff_wg, diff_ga, diff_aw, score_wg, score_ga, score_aw);
 
+        //それぞれの選ばれたモードでも、急激な速度変化(20km/h)がある場合、モードを-1として[EMERGENCY]を宣言する(最後のELSEへ飛ぶ)
         if(mode == 0 && (w_in > kf.speed + 20.0 || w_in < kf.speed -20.0)) mode = -1;
         if(mode == 1 && (g_in > kf.speed + 20.0 || g_in < kf.speed -20.0)) mode = -1;
         if(mode == 2 && (a_in > kf.speed + 20.0 || a_in < kf.speed -20.0)) mode = -1;
-        
-
 
         //WHEELとGPSのセンサーペアを採用する場合
         if(mode == 0){
@@ -253,16 +251,35 @@ int main(){
         }
 
         else{
-            //全ての値(GPW,WHEEL,ACCLEの値)がバラバラ
-            printf("\n ->[EMERGENCY]:多数決不可能！前回の速度から妥当性を判断します\n");
+            //全ての値のどれが正しいかが分からない場合
+            printf("\n ->[EMERGENCY]:多数決不可能！前回の速度(予測速度)から妥当性を判断します\n");
             double d_w = (kf.speed > w_in) ? (kf.speed - w_in) : (w_in - kf.speed);
             double d_g = (kf.speed > g_in) ? (kf.speed - g_in) : (g_in - kf.speed);
             double d_a = (kf.speed > a_in) ? (kf.speed - a_in) : (a_in - kf.speed);
-            if(d_a < d_w && d_a < d_g && d_a < MAX_DIFF * 2){
+            
+            //最初は暫定1位にWHEELの値を入れる
+            double min_diff = d_w;
+            observation = w_in;
+            current_sensor_var = W_VAR * 10.0;
+            //GPSの方がマシな場合
+            if(d_g < min_diff){
+                min_diff = d_g;
+                observation = g_in;
+                current_sensor_var = G_VAR * 10.0;
+            }
+            //ACCELの方がマシな場合
+            if(d_a < min_diff){
+                min_diff = d_a;
                 observation = a_in;
                 current_sensor_var = A_VAR * 10.0;
-                printf(" ->[RESCUE]:ACCELのみを信頼して継続\n");
             }
+
+            //ACCELのズレがWHEELのズレよりも小さく、かつGPSのズレよりも小さく、更にそのズレが20km/h以内(加速度として20km/hはないとの判断)である場合にしている
+            // ->よって、ACCELがこの中でマシな数値を持っていると判断できる
+            if(min_diff < MAX_DIFF * 2){
+                printf(" ->[RESCUE]:一番マシなセンサーを採用\n");
+            }
+            //全てがだめな場合、とりあえず予測速度を提示
             else{
                 observation = kf.speed;
                 current_sensor_var = 100.0;
