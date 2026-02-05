@@ -324,7 +324,6 @@ int main(){
     /* ＝＝＝ SIMULATOR　START ＝＝＝ */
     printf("＝＝＝ SIMULATOR START ＝＝＝\n");
     double virtual_speed = SIMULATOR_VIRTUAL_SPEED;         //シミュレーション時の初速度
-    double target_yaw_rate = SIMULATOR_VIRTUAL_YAW_RATE;    //シミュレーション時、1秒間に曲がる旋回数
 
     for(int i = 0; i < 100; i++){
         //入力(シミュレーター)
