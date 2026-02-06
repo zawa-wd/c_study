@@ -19,6 +19,8 @@
 #define SIMULATOR_G_NOISE -0.5      //[SIMULATOR]GPSのノイズ
 #define SIMULATOR_A_NOISE 1.0       //[SIMULATOR]ACCELのノイズ
 #define SIMULATOR_Y_NOISE 0.02      //[SIMULATOR]ジャイロのノイズ
+#define MAX_YAW_RATE 1.5 //1秒間に1.5rad以上の旋回は異常とみなす
+#define STOP_THRESHOLD 0.1 //0.1km/h以下なら「停止中」とみなす
 
 /**************************************************
  * 構造体：Sensor
@@ -76,8 +78,10 @@ void run_simulator(int step, double *v_speed, Sensor sns[]){
     sns[2].current_val = simulate_sensor(*v_speed, SIMULATOR_A_NOISE);     //ノイズを加えたACCELの入力値
     sns[3].current_val = simulate_sensor(SIMULATOR_VIRTUAL_YAW_RATE, SIMULATOR_Y_NOISE);   //ノイズを加えたGYROの入力値
 
-    /* --- シーン①20回目からGPSが故障、36回目からWHEELも故障 START--- */
-    //【シナリオ】20回目からGPSが故障して150km/hに固定される
+    /* --- シーン想定 START--- */
+    if(step >= 20){
+        sns[3].current_val = 99.0;//ジャイロ暴走
+    }
     /*
     if(step >= 36){
         sns[3].current_val = 150.0;
@@ -90,7 +94,7 @@ void run_simulator(int step, double *v_speed, Sensor sns[]){
         sns[0].current_val = 150.0;
     }
     */
-    /* --- シーン①20回目からGPSが故障、36回目からWHEELも故障 END--- */
+    /* --- シーン想定 END--- */
 }
 
 /************************************************************
@@ -356,6 +360,24 @@ int main(){
         //以下もし角度を更新する場合
         //double kf.yaw = calculate_kalman(kf.yaw, &kf.var_y, gyro_obs, gyro_var, kf.q_y);//カルマンフィルタに掛ける
         double gyro_in = sns[3].current_val;
+
+        //旋回限界チェック
+        if(fabs(gyro_in) > MAX_YAW_RATE){
+            printf(" ->[GYRO WARNING]: 異常な旋回率(%.2f)を検知。無視します。\n", gyro_in);
+            gyro_in = 0.0; // 以上は無視して「直進」とみなす
+            sns[3].error_count++;
+        }
+
+        //静止時ドリフト対策
+        if(fusion_speed < STOP_THRESHOLD){
+            gyro_in = 0.0;
+        }
+
+        //故障判定
+        if(sns[3].error_count >= ERROR_THRESHOLD){
+            printf(" ->[GYRO FAILURE]: ジャイロが完全に故障しました。予測のみで航行します。\n");
+            gyro_in = 0.0; //あるいは前回の値を少し維持するロジック
+        }        
 
         //航法計算…ジャイロから得た角度を使って、二次元座標を算出
         kf.yaw += gyro_in * DT;
