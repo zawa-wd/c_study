@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <math.h>
+#include <math.h>   //角度計算に利用
 
 /*--- 定数設定 ---*/
 //補足：_varは分散…分散は数値が大きいほど信頼できないというイメージ
@@ -7,8 +7,8 @@
 #define ERROR_THRESHOLD 5    //Errorが連続して左の数回あった場合、故障とみなす
 #define BUFFER_SIZE 3        //構造体のサイズ
 #define DT 0.1               //1ステップあたりの時間(秒)
-#define W_VAR 0.01           //WHEELの分散は正確(誤差１)
-#define G_VAR 0.5            //GPSの分散はフラフラ(誤差25)
+#define W_VAR 0.01           //WHEELの分散は正確(誤差0.0１)
+#define G_VAR 0.5            //GPSの分散はフラフラ(誤差0.5)
 #define A_VAR 1.0            //加速度の分散は結構ガタガタ(ドリフトしやすい想定)
 #define Y_VAR 0.05           //ジャイロ(角速度)の分散(信頼度)
 #define INITIAL_VAR 1.0      //カルマンフィルタの初期値　最初の自身のなさ
@@ -19,8 +19,8 @@
 #define SIMULATOR_G_NOISE -0.5      //[SIMULATOR]GPSのノイズ
 #define SIMULATOR_A_NOISE 1.0       //[SIMULATOR]ACCELのノイズ
 #define SIMULATOR_Y_NOISE 0.02      //[SIMULATOR]ジャイロのノイズ
-#define MAX_YAW_RATE 1.5 //1秒間に1.5rad以上の旋回は異常とみなす
-#define STOP_THRESHOLD 0.1 //0.1km/h以下なら「停止中」とみなす
+#define MAX_YAW_RATE 1.5    //1秒間に1.5rad以上の旋回は異常とみなす
+#define STOP_THRESHOLD 0.1  //0.1km/h以下なら「停止中」とみなす
 
 /**************************************************
  * 構造体：Sensor
@@ -31,7 +31,7 @@ typedef struct{
     int index;
     int count;
     int error_count;    //連続でエラーした回数をカウント
-    /* --- 汎用化 --- */
+    //汎用化
     double current_val; //今読み込んだ生値
     double variance;    //固有の分散(W_VARなど)
     char name[10];      //デバッグ表示用("WHEEL"など)
@@ -53,8 +53,8 @@ typedef struct{
 }KalmanFilter2D;
 
 /*--- プロトタイプ宣言 ---*/
-void run_simulator(int step, double *v_speed, Sensor sns[]);//シミュレーターシーン管理用の関数
-void get_fused_observation(Sensor sns[], double current_kf_speed, double *obs, double *var);
+void run_simulator(int step, double *v_speed, Sensor sns[]);    //シミュレーターシーン管理用の関数
+void get_fused_observation(Sensor sns[], double current_kf_speed, double *obs, double *var);    //多数決とペアの選択関数
 void process_sensor_fusion(double in1, double in2, double in3, double var1, double var2, Sensor *s1, Sensor *s2, Sensor *s3, double *obs, double *cur_var); //センサーステータス更新用関数
 int check_sensor_status(Sensor *s,double raw_diff); //センサーの故障判断
 int select_best_pair(double d_wg, double d_ga, double d_aw, int s_wg, int s_ga, int s_aw); //センサーの正しいらしいベアを判断
@@ -79,17 +79,20 @@ void run_simulator(int step, double *v_speed, Sensor sns[]){
     sns[3].current_val = simulate_sensor(SIMULATOR_VIRTUAL_YAW_RATE, SIMULATOR_Y_NOISE);   //ノイズを加えたGYROの入力値
 
     /* --- シーン想定 START--- */
-    if(step >= 20){
-        sns[3].current_val = 99.0;//ジャイロ暴走
-    }
     /*
+    if(step >= 20){
+        //ジャイロ暴走
+        sns[3].current_val = 99.0;
+    }
     if(step >= 36){
+        //全部暴走
         sns[3].current_val = 150.0;
         sns[2].current_val = 150.0;
         sns[1].current_val = 150.0;
         sns[0].current_val = 150.0;
     }
     if(step >= 20){
+        //ホイールとGPSが暴走
         sns[1].current_val = 150.0;
         sns[0].current_val = 150.0;
     }
@@ -139,13 +142,14 @@ void get_fused_observation(Sensor sns[], double current_kf_speed, double *obs, d
         process_sensor_fusion(a_in, w_in, g_in, sns[2].variance, sns[0].variance, &sns[2], &sns[0], &sns[1], obs, var);
     }
 
+    //全ての値のどれが正しいかが分からない場合
     else{
-        //全ての値のどれが正しいかが分からない場合
         printf("\n ->[EMERGENCY]:汎用関数で救済を試みます\n");
         *obs = find_best_sensor(sns, 3, current_kf_speed);
 
-        //ACCELのズレがWHEELのズレよりも小さく、かつGPSのズレよりも小さく、更にそのズレが20km/h以内(加速度として20km/hはないとの判断)である場合にしている
-        // ->よって、ACCELがこの中でマシな数値を持っていると判断できる
+        //　ACCELのズレがWHEELのズレよりも小さく、かつGPSのズレよりも小さく、
+        //　更にそのズレが20km/h以内(加速度として20km/hはないとの判断)である場合にしている
+        // 　　->よって、ACCELがこの中でマシな数値を持っていると判断できる
         if(fabs(*obs - current_kf_speed) < MAX_DIFF * 2){
             *var = A_VAR * 10.0;//市立でセンサ信頼度低め
             printf(" ->[RESCUE]: %f を採用\n",*obs);
@@ -404,3 +408,4 @@ int main(){
     printf("\n[出力] 'sensor_log.csv' を保存しました。\n");
     return 0;
 }
+#P;; Rewuest test
