@@ -80,11 +80,14 @@ void run_simulator(int step, double *v_speed, Sensor sns[]){
     //【シナリオ】20回目からGPSが故障して150km/hに固定される
     /*
     if(step >= 36){
+        sns[3].current_val = 150.0;
+        sns[2].current_val = 150.0;
         sns[1].current_val = 150.0;
         sns[0].current_val = 150.0;
     }
     if(step >= 20){
         sns[1].current_val = 150.0;
+        sns[0].current_val = 150.0;
     }
     */
     /* --- シーン①20回目からGPSが故障、36回目からWHEELも故障 END--- */
@@ -310,6 +313,7 @@ double simulate_sensor(double target_speed, double noise_level){
 *メインルーチン 
 **********/
 int main(){
+
     Sensor sns[4] = {
         {{0}, 0 , 0, 0, 0.0, W_VAR, "WHEEL"},
         {{0}, 0 , 0, 0, 0.0, G_VAR, "GPS"},
@@ -319,6 +323,16 @@ int main(){
 
     KalmanFilter2D kf =   {40.0, 0.0, 0.0, 0.0, INITIAL_VAR, INITIAL_VAR, PROCESS_NOISE, 0.01}; //2Dカルマンフィルタの初期化
     double fusion_speed = 0.0;
+
+    //ファイルを開く準備
+    FILE *fp;
+    fp = fopen("sensor_log.csv", "w");//書き込みモードで開く
+    if(fp == NULL){
+        printf("ファイルが開けませんでした\n");
+        return 1;
+    }
+    //ファイルへのヘッダー書き込み
+    fprintf(fp,"Step,Virtual_speed,Fusion_Speed,X,Y,Yaw,Error\n");
 
     printf("センサー入力を開始：\n");
     /* ＝＝＝ SIMULATOR　START ＝＝＝ */
@@ -333,6 +347,7 @@ int main(){
         double observation = 0;         //統合された「今この瞬間の実測値」
         double sensor_var = 0;  //採用されたセンサーペアの「信頼性(分散)」
         
+        //多数決とペアの選択
         get_fused_observation(sns, kf.speed, &observation, &sensor_var);
 
         kf.speed = calculate_kalman(kf.speed, &kf.var_x, observation, sensor_var, kf.q_x);//カルマンフィルタに掛ける
@@ -342,7 +357,7 @@ int main(){
         //double kf.yaw = calculate_kalman(kf.yaw, &kf.var_y, gyro_obs, gyro_var, kf.q_y);//カルマンフィルタに掛ける
         double gyro_in = sns[3].current_val;
 
-        //航法
+        //航法計算…ジャイロから得た角度を使って、二次元座標を算出
         kf.yaw += gyro_in * DT;
         double v_ms =  fusion_speed / 3.6;
         kf.x += v_ms * cos(kf.yaw) * DT;
@@ -358,6 +373,12 @@ int main(){
         double error = fusion_speed - virtual_speed;
         double abs_error = (error < 0) ? -error : error;
         printf("[FUSION] 推定速度：%.2f(誤差：%.3f)[km/h]\n", fusion_speed, abs_error);
-    }    
+
+        //データの書き出し
+        fprintf(fp, "%d,%.2f,%.2f,%.2f,%.2f,%.2f,%.3f\n",i,virtual_speed, fusion_speed, kf.x, kf.y, kf.yaw, error);
+    }
+    //ファイルを閉じる
+    fclose(fp);
+    printf("\n[出力] 'sensor_log.csv' を保存しました。\n");
     return 0;
 }
