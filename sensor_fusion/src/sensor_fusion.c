@@ -1,26 +1,6 @@
 #include <stdio.h>
 #include <math.h>   //角度計算に利用
 
-/*--- 定数設定 ---*/
-//補足：_varは分散…分散は数値が大きいほど信頼できないというイメージ
-#define MAX_DIFF 10.0        //平均値が左数値以上は正しくない可能性があると考え、他のセンサーデータを利用する
-#define ERROR_THRESHOLD 5    //Errorが連続して左の数回あった場合、故障とみなす
-#define BUFFER_SIZE 3        //構造体のサイズ
-#define DT 0.1               //1ステップあたりの時間(秒)
-#define W_VAR 0.01           //WHEELの分散は正確(誤差0.0１)
-#define G_VAR 0.5            //GPSの分散はフラフラ(誤差0.5)
-#define A_VAR 1.0            //加速度の分散は結構ガタガタ(ドリフトしやすい想定)
-#define Y_VAR 0.05           //ジャイロ(角速度)の分散(信頼度)
-#define INITIAL_VAR    1.0      //カルマンフィルタの初期値　最初の自身のなさ
-#define PROCESS_NOISE 10.0   //カルマンフィルタの初期値　予測がどれくらいズレているか
-#define SIMULATOR_VIRTUAL_SPEED   40.0   //[SIMULATOR]初速度
-#define SIMULATOR_VIRTUAL_YAW_RATE 0.5 //[SIMULATOR]１秒間の旋回数
-#define SIMULATOR_W_NOISE  0.2       //[SIMULATOR]WHEELのノイズ
-#define SIMULATOR_G_NOISE -0.5      //[SIMULATOR]GPSのノイズ
-#define SIMULATOR_A_NOISE  1.0       //[SIMULATOR]ACCELのノイズ
-#define SIMULATOR_Y_NOISE  0.02      //[SIMULATOR]ジャイロのノイズ
-#define MAX_YAW_RATE   1.5    //1秒間に1.5rad以上の旋回は異常とみなす
-#define STOP_THRESHOLD 0.1  //0.1km/h以下なら「停止中」とみなす
 
 /**************************************************
  * 構造体：Sensor
@@ -53,7 +33,6 @@ typedef struct{
 }KalmanFilter2D;
 
 /*--- プロトタイプ宣言 ---*/
-void run_simulator(int step, double *v_speed, Sensor sns[]);    //シミュレーターシーン管理用の関数
 void get_fused_observation(Sensor sns[], double current_kf_speed, double *obs, double *var);    //多数決とペアの選択関数
 void process_sensor_fusion(double in1, double in2, double in3, double var1, double var2, Sensor *s1, Sensor *s2, Sensor *s3, double *obs, double *cur_var); //センサーステータス更新用関数
 int check_sensor_status(Sensor *s,double raw_diff); //センサーの故障判断
@@ -61,44 +40,8 @@ int select_best_pair(double d_wg, double d_ga, double d_aw, int s_wg, int s_ga, 
 double calculate_kalman(double current_val, double *current_var, double obs, double obs_var, double q); //汎用カルマンフィルタ
 double update_sensor(Sensor *s,double val);         //センサーのアップデート
 double find_best_sensor(Sensor sensors[], int num_sensors, double predicted_speed);//救済関数
-double simulate_sensor(double target_speed, double noise_level);//センサーの値をシミュレート生成する関数
 
 /*--- 関数 ---*/
-/************************************************************
- *シミュレーターのシーン管理用関数
- *引　数：STEP：何回目であるか
-         *v_speed：シミュレーション用に決めている速度(ポインタ渡し)
-         sns：センサーの値(シーンに応じた計算値を渡す)
- *返り値：void
- ************************************************************/
-void run_simulator(int step, double *v_speed, Sensor sns[]){
-
-    sns[0].current_val = simulate_sensor(*v_speed, SIMULATOR_W_NOISE);     //ノイズを加えたWHEELの入力値
-    sns[1].current_val = simulate_sensor(*v_speed, SIMULATOR_G_NOISE);     //ノイズを加えたGPSの入力値
-    sns[2].current_val = simulate_sensor(*v_speed, SIMULATOR_A_NOISE);     //ノイズを加えたACCELの入力値
-    sns[3].current_val = simulate_sensor(SIMULATOR_VIRTUAL_YAW_RATE, SIMULATOR_Y_NOISE);   //ノイズを加えたGYROの入力値
-
-    /* --- シーン想定 START--- */
-    /*
-    if(step >= 20){
-        //ジャイロ暴走
-        sns[3].current_val = 99.0;
-    }
-    if(step >= 36){
-        //全部暴走
-        sns[3].current_val = 150.0;
-        sns[2].current_val = 150.0;
-        sns[1].current_val = 150.0;
-        sns[0].current_val = 150.0;
-    }
-    if(step >= 20){
-        //ホイールとGPSが暴走
-        sns[1].current_val = 150.0;
-        sns[0].current_val = 150.0;
-    }
-    */
-    /* --- シーン想定 END--- */
-}
 
 /************************************************************
  *多数決とペアの選択関数(センサーフュージョンの中核)
@@ -305,14 +248,4 @@ double find_best_sensor(Sensor sensors[], int num_sensors, double predicted_spee
         }
     }
     return best_val;
-}
-
-/******************************
-*センサーの値をシミュレーション生成する関数
-*引　数：target_speed:本来あるべき車速、
-　　　　 noise_level:センサーのガタツキ具合(本来乱数を使うが今回は固定値)
-*戻り値：
-******************************/
-double simulate_sensor(double target_speed, double noise_level){
-    return target_speed + noise_level;
 }

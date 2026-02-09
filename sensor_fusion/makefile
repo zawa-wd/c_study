@@ -6,7 +6,7 @@ LIBS = -lm
 TARGET = navi_sim
 CSVFILE = log/*.csv
 
-SRCS = src/main.c src/sensor_fusion.c
+SRCS = src/main.c src/sensor_fusion.c src/simulator.c
 
 all: $(TARGET)
 
