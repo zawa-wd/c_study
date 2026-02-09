@@ -1,36 +1,4 @@
-#include <stdio.h>
-#include <math.h>   //角度計算に利用
-
-
-/**************************************************
- * 構造体：Sensor
- * センサーのデータ構造を一定にすることで処理を重複させないようにする
-**************************************************/
-typedef struct{
-    double buffer[BUFFER_SIZE];
-    int index;
-    int count;
-    int error_count;    //連続でエラーした回数をカウント
-    //汎用化
-    double current_val; //今読み込んだ生値
-    double variance;    //固有の分散(W_VARなど)
-    char name[10];      //デバッグ表示用("WHEEL"など)
-} Sensor;
-
-/******************************
- * 構造体：KalmanFilter2D
- * 2Dのカルマンフィルタで利用する構造体
-******************************/
-typedef struct{
-    double speed;   //GPSなど加速度計を組み合わせて算出した速度
-    double yaw;     //車両の向いている方角
-    double x;       //座標(スタート地点からの現在地)
-    double y;
-    double var_x;   //推定誤差・分散(自身のなさ)
-    double var_y;   
-    double q_x;     //プロセスノイズ（どれくらい予測を疑うか）
-    double q_y;     
-}KalmanFilter2D;
+#include "sensor_fusion.h"
 
 /*--- プロトタイプ宣言 ---*/
 void get_fused_observation(Sensor sns[], double current_kf_speed, double *obs, double *var);    //多数決とペアの選択関数
@@ -38,7 +6,7 @@ void process_sensor_fusion(double in1, double in2, double in3, double var1, doub
 int check_sensor_status(Sensor *s,double raw_diff); //センサーの故障判断
 int select_best_pair(double d_wg, double d_ga, double d_aw, int s_wg, int s_ga, int s_aw); //センサーの正しいらしいベアを判断
 double calculate_kalman(double current_val, double *current_var, double obs, double obs_var, double q); //汎用カルマンフィルタ
-double update_sensor(Sensor *s,double val);         //センサーのアップデート
+void update_sensor(Sensor *s,double val);         //センサーのアップデート
 double find_best_sensor(Sensor sensors[], int num_sensors, double predicted_speed);//救済関数
 
 /*--- 関数 ---*/
@@ -213,17 +181,17 @@ double calculate_kalman(double current_val, double *current_var, double obs, dou
 * 引　数: Sensor *s, double val
 * 戻り値: 平均値
 **************************************************/
-double update_sensor(Sensor *s, double val){
+void update_sensor(Sensor *s, double val) {
+    s->current_val = val;
     s->buffer[s->index] = val;
     s->index = (s->index + 1) % BUFFER_SIZE;
-    if(s->count < BUFFER_SIZE) s->count++;
-
+    if (s->count < BUFFER_SIZE) s->count++;
+    
     double sum = 0;
-    for (int i = 0; i < s->count; i++){
-        sum += s->buffer[i];
-    }
-    return sum / s->count;
+    for (int i = 0; i < s->count; i++) sum += s->buffer[i];
+    s->current_val = sum / s->count;
 }
+
 
 /************************************************************
 *多数決が崩壊した時、予測速度と類似するセンサーを探し出す関数（汎用化）
