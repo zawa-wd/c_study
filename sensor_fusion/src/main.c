@@ -1,8 +1,8 @@
 #include "sensor_fusion.h"
 
 int main() {
-    /* --- 1. センサー構造体の初期化 --- */
-    // ヘッダーで定義した分散値(W_VARなど)を使用して初期設定を行います
+    /* --- センサー構造体の初期化 --- */
+    // ヘッダーで定義した分散値(W_VARなど)を使用して初期設定
     Sensor sns[4] = {
         {{0}, 0, 0, 0, 0.0, W_VAR, "WHEEL"},
         {{0}, 0, 0, 0, 0.0, G_VAR, "GPS"},
@@ -10,8 +10,8 @@ int main() {
         {{0}, 0, 0, 0, 0.0, Y_VAR, "GYRO"}
     };
 
-    /* --- 2. カルマンフィルタの初期化 --- */
-    // 初期速度やプロセスノイズを設定します
+    /* --- カルマンフィルタの初期化 --- */
+    // 初期速度やプロセスノイズを設定
     KalmanFilter2D kf = {
         SIM_START_SPEED,   // speed: 初期速度
         0.0,               // yaw: 方位
@@ -26,7 +26,7 @@ int main() {
     double virtual_speed = SIM_START_SPEED; // シミュレーション上の真の速度
     double fusion_speed = 0.0;
 
-    /* --- 3. ログファイル（CSV）の準備 --- */
+    /* --- ログファイル（CSV）の準備 --- */
     FILE *fp = fopen("logs/sensor_log.csv", "w");
     if (fp == NULL) {
         printf("エラー：ログファイルを開けませんでした。'logs'ディレクトリが存在するか確認してください。\n");
@@ -37,7 +37,7 @@ int main() {
 
     printf("=== 自動航行シミュレーション開始 (シナリオ: %d) ===\n", ACTIVE_SCENARIO);
 
-    /* --- 4. メインループ --- */
+    /* --- メインループ --- */
     for (int i = 0; i < TOTAL_STEPS; i++) {
         // [シミュレータ層] 仮想センサーデータの生成
         run_simulator(i, &virtual_speed, sns);
@@ -64,7 +64,7 @@ int main() {
             gyro_in = 0.0;
         }
 
-        /* --- 5. 航法計算（座標更新） --- */
+        /* --- 航法計算（座標更新） --- */
         kf.yaw += gyro_in * DT;
         double v_ms = fusion_speed / 3.6; // km/h -> m/s 変換
         kf.x += v_ms * cos(kf.yaw) * DT;
@@ -75,7 +75,7 @@ int main() {
             update_sensor(&sns[s], sns[s].current_val);
         }
 
-        /* --- 6. 画面表示とログ保存 --- */
+        /* --- 画面表示とログ保存 --- */
         double error = fusion_speed - virtual_speed;
         printf("[%02d] POS(%.1f, %.1f) YAW:%.2f SPEED:%.2f (ERR:%.3f)\n", 
                i, kf.x, kf.y, kf.yaw, fusion_speed, error);
